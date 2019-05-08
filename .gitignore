@@ -1,0 +1,6 @@
+/build/
+/build_release/
+/data/
+compile_commands.json
+/.idea/
+/cmake-build-debug/
