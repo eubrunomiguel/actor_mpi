@@ -90,6 +90,7 @@ void OutPort<T, capacity>::setChannel(GlobalChannelRef newChannel) {
 
 template <typename T, int capacity>
 void OutPort<T, capacity>::write(T element) {
+    // we need the rank to where write here, and memory information to deposit a one-sided communication
     std::lock_guard<std::mutex> writeLock(lock);
     if (remoteChannel == nullptr) {
         throw std::runtime_error(std::string("Unable to write to channel, channel not connected. Channel: ") 

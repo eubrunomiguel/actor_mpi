@@ -76,15 +76,14 @@ class ActorGraph {
         void synchronizeActors();
         void connectPorts(int sourceActor, std::string sourcePortName, int destinationActor, std::string destinationPortName);
         int getNumActors();
-        int getActor(std::string name);
+        int getActorByName(std::string name);
         std::string prettyPrint();
         double run();
         
     private:
         void checkInsert(std::string actorName, int actorRank);
-        upcxx::future<> connectFromDestination(GlobalActorRef sourceActor, std::string sourcePortName, GlobalActorRef destinationActor, std::string destinationPortName);
-        upcxx::future<> connectFromSource(GlobalActorRef sourceActor, std::string sourcePortName, GlobalActorRef destinationActor, std::string destinationPortName);
-        upcxx::future<> connectFromThird(GlobalActorRef sourceActor, std::string sourcePortName, GlobalActorRef destinationActor, std::string destinationPortName);
-        void finishInitialization();
+        void connectFromDestination(int sourceActor, std::string sourcePortName, int destinationActor, std::string destinationPortName);
+        void connectFromSource(int sourceActor, std::string sourcePortName, int destinationActor, std::string destinationPortName);
+        void connectFromThird(int sourceActor, std::string sourcePortName, int destinationActor, std::string destinationPortName);
         void markAsDirty(Actor *a);
 };

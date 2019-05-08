@@ -55,21 +55,21 @@ int main(int argc, const char **argv) {
     MPI_Init(NULL, NULL);
     upcxx::init();
 
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+    int myRank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
 
     ActorGraph ag;
-    Actor * meActor = new PingPongActor("A-"s + to_string(world_rank));
-    ag.addActor(meActor);
+    Actor * myActor = new PingPongActor("A-"s + to_string(myRank));
+    ag.addActor(myActor);
     ag.synchronizeActors();
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    int otherRank = world_rank == 1 ? 0 : 1;
+    int otherActorRank = myRank == 1 ? 0 : 1;
 
-    ag.connectPorts(meActor, PingPongActor::OUT_PORT_NAME, otherActor, PingPongActor::IN_PORT_NAME);
+    ag.connectPorts(myRank, PingPongActor::OUT_PORT_NAME, otherActorRank, PingPongActor::IN_PORT_NAME);
 
-    //    ag.run();
+    ag.run();
 
     upcxx::finalize();
     MPI_Finalize();

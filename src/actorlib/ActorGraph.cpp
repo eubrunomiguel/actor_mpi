@@ -60,9 +60,9 @@ ActorGraph::ActorGraph()
 }
 
 void ActorGraph::addActor(Actor *a) {
-    int world_rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-    checkInsert(a->name, world_rank);
+    int myRank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+    checkInsert(a->name, myRank);
 
     a->parentActorGraph = this;
     localActors++;
@@ -117,13 +117,13 @@ void ActorGraph::synchronizeActors() {
         this->checkInsert("Name not defined by mpi structure", globalActors[i]);
     }
 
-    delete numActorsPerRank;
-    delete myActors;
-    delete displacement;
-    delete globalActors;
+    free(numActorsPerRank);
+    free(myActors);
+    free(displacement);
+    free(globalActors);
 }
 
-void ActorGraph::checkInsert(string actorName, int actorRank) {
+void ActorGraph::checkInsert(std::string actorName, int actorRank) {
     if (this->actors.find(actorName) != this->actors.end()) {
         throw std::runtime_error("May not add actor that is already existing.");
     }    
@@ -136,31 +136,32 @@ void ActorGraph::connectPorts(int sourceActor, std::string sourcePortName, int d
     // upcxx::future<R> upcxx::rpc(intrank_t r, F &&func, Args &&...args);
     //    This executes function func on rank r and returns the result as a future of type R
 
-    if (destinationActor.where() == upcxx::rank_me()) {
-        connectFromDestination(sourceActor, sourcePortName, destinationActor, destinationPortName).wait();
-    } else if (sourceActor.where() == upcxx::rank_me()) {
-        connectFromSource(sourceActor, sourcePortName, destinationActor, destinationPortName).wait();
-    } else {
-        connectFromThird(sourceActor, sourcePortName, destinationActor, destinationPortName).wait();
-    }
+    int myRank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+
+    if (destinationActor == myRank)
+        connectFromDestination(sourceActor, sourcePortName, destinationActor, destinationPortName);
+    else if (sourceActor == myRank)
+        connectFromSource(sourceActor, sourcePortName, destinationActor, destinationPortName);
+    else
+        connectFromThird(sourceActor, sourcePortName, destinationActor, destinationPortName);
+
 }
 
-upcxx::future<> ActorGraph::connectFromDestination(GlobalActorRef sourceActor, std::string sourcePortName, GlobalActorRef destinationActor, std::string destinationPortName) {
+void ActorGraph::connectFromDestination(int sourceActor, std::string sourcePortName, int destinationActor, std::string destinationPortName) {
     GlobalChannelRef c = connectDestination(destinationActor, destinationPortName);
     auto srcFut = upcxx::rpc(sourceActor.where(), connectSource, sourceActor, sourcePortName, c);
-    return srcFut;
 }
 
-upcxx::future<> ActorGraph::connectFromSource(GlobalActorRef sourceActor, std::string sourcePortName, GlobalActorRef destinationActor, std::string destinationPortName) {
+void ActorGraph::connectFromSource(GlobalActorRef sourceActor, std::string sourcePortName, GlobalActorRef destinationActor, std::string destinationPortName) {
     upcxx::future<GlobalChannelRef> channelFut = upcxx::rpc(destinationActor.where(), connectDestination, destinationActor, destinationPortName);
     upcxx::future<> sourceDone = channelFut.then([=](GlobalChannelRef c) {
         upcxx::future<> sourceRpcDone = upcxx::rpc(sourceActor.where(), connectSource, sourceActor, sourcePortName, c);
         return sourceRpcDone;
     });
-    return sourceDone;
 }
 
-upcxx::future<> ActorGraph::connectFromThird(GlobalActorRef sourceActor, std::string sourcePortName, GlobalActorRef destinationActor, std::string destinationPortName) {
+void ActorGraph::connectFromThird(GlobalActorRef sourceActor, std::string sourcePortName, GlobalActorRef destinationActor, std::string destinationPortName) {
     upcxx::future<> allDone = upcxx::rpc(
         sourceActor.where(), 
         [] (upcxx::dist_object<ActorGraph *> &rag,  GlobalActorRef sourceActor, std::string sourcePortName, GlobalActorRef destinationActor, std::string destinationPortName) {
@@ -172,14 +173,13 @@ upcxx::future<> ActorGraph::connectFromThird(GlobalActorRef sourceActor, std::st
         destinationActor, 
         destinationPortName
     );
-    return allDone;
 }
 
 int ActorGraph::getNumActors() {
     return actors.size();
 }
 
-int ActorGraph::getActor(string name) {
+int ActorGraph::getActorByName(std::string name) {
     auto entry = actors.find(name);
     if (entry != actors.end()) {
         return entry->second;
@@ -203,10 +203,8 @@ string ActorGraph::prettyPrint() {
 }
 
 double ActorGraph::run() {
-    double runTime = 0.0;
-    upcxx::barrier();
-    this->finishInitialization();
-    upcxx::barrier();
+    auto runTime = 0.0;
+    MPI_Barrier(MPI_COMM_WORLD);
 
     for (auto &actorPairs : actors) {
         if (actorPairs.second.where() == upcxx::rank_me()) {
@@ -237,16 +235,6 @@ double ActorGraph::run() {
 
     upcxx::barrier();
     return runTime;
-}
-
-void ActorGraph::finishInitialization() {
-    upcxx::progress();
-    for (auto &actorPairs : actors) {
-        if (actorPairs.second.where() == upcxx::rank_me()) {
-            auto aRef = *(actorPairs.second.local());
-            this->actorTriggerCount[aRef] = 1;
-        }
-    }
 }
 
 // Non-instance methods

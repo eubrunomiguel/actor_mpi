@@ -1,13 +1,15 @@
-# HOME
+# Commands
 upcxx-run -n 3 /Users/eubrunomiguel/Documents/TUM/Thesis/actor-upcxx/build/square_root_example
 
 # Cluster
-
 export CC=icc
 export CXX=icpc
 
 module load cmake/3.10
 
+// Recherhalle
+export PATH=~/Downloads/upcxx-2019.3.0/bin:$PATH
+// LRZ
 export PATH="/home/hpc/pr63so/ga27nuk2/upcxx-2019.3.0/upcxx/bin:$PATH"
 
 mkdir build
@@ -15,8 +17,14 @@ cd build
 cmake ..
 make -j 8
 
+// tracing
+module unload mpi.intel
+module load mpi.intel/2018 itac/2018
+compile with -trace flag
+view with traceanalyzer *.stf
+
 # Actors: Question?
-one per rank -- facilitates
+one per rank -- facilitates - but no. Maintain original
 more than one per rank - also works -- but comminucation to specific one is a bit more sketch. Use communicators!!?
 
 # Assuming: Question?
@@ -24,5 +32,3 @@ isGasnetSequentialBackend: TRUE on config.cpp:~30
 
 # Overall
 Assuming same design, same interface. Making decisions to preserve executation model. Example: one-sided communication
-
-hi
