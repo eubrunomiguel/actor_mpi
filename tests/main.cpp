@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unordered_map>
 #include <iostream>
+#include <memory>
 
 std::unordered_map<std::string, int> actors;
 int totalactors=0;
@@ -28,8 +29,9 @@ int main(){
     MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
 
     // Exchange local number of actors per rank
-    int *numActorsPerRank = (int *)malloc(sizeof(int) * worldSize);
-    MPI_Allgather(&totalactors, 1, MPI_INT, numActorsPerRank, 1, MPI_INT, MPI_COMM_WORLD);
+    std::unique_ptr<int[]> numActorsPerRank(new int[worldSize]);
+
+    MPI_Allgather(&totalactors, 1, MPI_INT, numActorsPerRank.get(), 1, MPI_INT, MPI_COMM_WORLD);
 
     int totalActors = 0;
     for (int i = 0; i < worldSize; i++){
@@ -60,7 +62,7 @@ int main(){
                    totalactors,
                    MPI_INT,
                    globalActors,
-                   numActorsPerRank,
+                   numActorsPerRank.get(),
                    displacement,
                    MPI_INT,
                    MPI_COMM_WORLD);
@@ -71,12 +73,10 @@ int main(){
         std::cout << globalActors[i] << std::endl;
     }
 
-    delete numActorsPerRank;
-    delete myActors;
-    delete displacement;
-    delete globalActors;
-
-
+   // free(numActorsPerRank);
+    free(myActors);
+    free(displacement);
+    free(globalActors);
 
     MPI_Finalize();
     return 0;
