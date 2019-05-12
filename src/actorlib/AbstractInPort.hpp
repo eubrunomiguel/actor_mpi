@@ -2,7 +2,8 @@
  * @file
  * This file is part of actorlib.
  *
- * @author Alexander Pöppl (poeppl AT in.tum.de, https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
+ * @author Alexander Pöppl (poeppl AT in.tum.de,
+ * https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
  *
  * @section LICENSE
  *
@@ -24,32 +25,27 @@
  *
  */
 
-#include <upcxx/upcxx.hpp>
-
-#include "Channel.hpp"
 #include "Port.h"
 #include "utils/mpi_helper.hpp"
 
 #pragma once
 
-class Actor;
 class AbstractOutPort;
 
 class AbstractInPort {
-    public:
-        const std::string name;
-        Actor *connectedActor;
-        upcxx::persona *actorPersona;
+public:
+  const PortIdentification<AbstractInPort> myIdentification;
 
-    public:
-        virtual void* getChannel() = 0;
-        virtual std::string toString() = 0;
-        virtual void registerWithChannel() = 0;
-        virtual void receiveMessagesFrom(std::unique_ptr<PortIdentification<AbstractOutPort>>) = 0;
+public:
+  virtual void *getChannel() const = 0;
 
-        AbstractInPort(const std::string& name);
-        virtual ~AbstractInPort();
-        
-        void setActorPersona(upcxx::persona *actorPersona);
-        void notify();
+  virtual std::string toString() const = 0;
+
+  virtual void receiveMessagesFrom(
+      std::unique_ptr<PortIdentification<AbstractOutPort>>) = 0;
+
+  explicit AbstractInPort(const std::string &name)
+      : myIdentification(name, MPIHelper::myRank()) {}
+
+  virtual ~AbstractInPort() = default;
 };

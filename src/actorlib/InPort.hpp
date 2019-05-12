@@ -2,7 +2,8 @@
  * @file
  * This file is part of actorlib.
  *
- * @author Alexander Pöppl (poeppl AT in.tum.de, https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
+ * @author Alexander Pöppl (poeppl AT in.tum.de,
+ * https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
  *
  * @section LICENSE
  *
@@ -30,35 +31,32 @@
 #include <string>
 
 #include "AbstractInPort.hpp"
-#include "AbstractOutPort.hpp"
-#include "Channel.hpp"
 #include "Port.h"
-#include "utils/mpi_helper.hpp"
 
 #pragma once
 
 class Actor;
+class AbstractOutPort;
 
-template <typename T, int capacity>
-class InPort : public AbstractInPort {
+template <typename T, int capacity> class InPort : public AbstractInPort {
 
-    friend class Actor;
+  friend class Actor;
 
-    private:
-        Channel<T, capacity> myChannel;
-        std::mutex lock;
+private:
+  Channel<T, capacity> myChannel;
 
-        std::unique_ptr<PortIdentification<AbstractOutPort>> otherPort;
+  std::unique_ptr<PortIdentification<AbstractOutPort>> otherPort;
+  std::array<std::pair<std::unique_ptr<MPI_Request>, T>, capacity> requests;
 
-    public:
-        T read();
-        T peek();
-        size_t available();
-        std::string toString();
-        void registerWithChannel();
-        void receiveMessagesFrom(std::unique_ptr<PortIdentification<AbstractOutPort>>);
+public:
+  T read(int elementCount);
+  T peek() const;
+  size_t available() const;
+  std::string toString() const final;
+  void receiveMessagesFrom(
+      std::unique_ptr<PortIdentification<AbstractOutPort>>) final;
 
-    private:
-        InPort<T, capacity>(std::string name);
-        void* getChannel();
+private:
+  explicit InPort<T, capacity>(const std::string &name);
+  void *getChannel() const final;
 };

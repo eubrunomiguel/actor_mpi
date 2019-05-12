@@ -2,7 +2,8 @@
  * @file
  * This file is part of actorlib.
  *
- * @author Alexander Pöppl (poeppl AT in.tum.de, https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
+ * @author Alexander Pöppl (poeppl AT in.tum.de,
+ * https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
  *
  * @section LICENSE
  *
@@ -24,127 +25,68 @@
  *
  */
 
-#include "Actor.hpp"
+#include <memory>
+#include <sstream>
+#include <string>
+#include <unordered_map>
 
+#include "Actor.hpp"
+#include "ActorGraph.hpp"
 #include "InPort.hpp"
 #include "OutPort.hpp"
-#include "utils/config.hpp"
-
-#include "ActorGraph.hpp"
-
-#include <string>
-#include <sstream>
-
-//#define DEBUG_ACTOR_TERMINATION
-#define ACTOR_PARALLEL_TERMINATION_HACK
 
 using namespace std;
 using namespace std::string_literals;
 
-Actor::Actor(const string &name)
-    : actorPersona(nullptr),
-      isRunning(false),
-      triggerCount(0),
-      name(name) {
+Actor::Actor(const string &name) : name(name) {}
+
+template <typename T, int capacity>
+const std::shared_ptr<InPort<T, capacity>>
+Actor::makeInPort(const std::string &portName) {
+  auto ip = std::make_shared<InPort<T, capacity>>(portName);
+  inPorts.emplace(portName, ip);
+  return ip;
 }
 
-Actor::~Actor() {
-    for (auto aip : this->inPorts) {
-        delete aip.second;
-    }
-    for (auto aop : this->outPorts) {
-        delete aop.second;
-    }
+template <typename T, int capacity>
+const std::shared_ptr<OutPort<T, capacity>>
+Actor::makeOutPort(const std::string &portName) {
+  auto op = std::make_shared<OutPort<T, capacity>>(portName);
+  outPorts.emplace(portName, op);
+  return op;
 }
 
-std::string Actor::toString() {
-    stringstream ss;
-    ss << "Actor( " << name << " ) { ";
-    for (auto &aip : this->inPorts) {
-        ss << aip.second->toString() << " ";
-    }
-    for (auto &aop : this->outPorts) {
-        ss << aop.second->toString() << " ";
-    }
-    ss << "}";
-    return ss.str();
+std::string Actor::toString() const {
+  stringstream ss;
+  ss << "Actor( " << name << " ) { ";
+  for (auto &aip : this->inPorts) {
+    ss << aip.second->toString() << " ";
+  }
+  for (auto &aop : this->outPorts) {
+    ss << aop.second->toString() << " ";
+  }
+  ss << "}";
+  return ss.str();
 }
 
-AbstractInPort * Actor::getInPort(const string &name) {
-    auto res = inPorts.find(name);
-    if (res != inPorts.end()) {
-        return res->second;
-    } else {
-        throw std::runtime_error("Actor "s + this->toString() + "has no InPort with id "s + name);
-    }
+const std::shared_ptr<AbstractInPort>
+Actor::getInPort(const string &portName) const {
+  auto res = inPorts.find(portName);
+  if (res != inPorts.end()) {
+    return res->second;
+  } else {
+    throw std::runtime_error("Actor "s + this->toString() +
+                             "has no InPort with id "s + portName);
+  }
 }
 
-AbstractOutPort * Actor::getOutPort(const string &name) {
-    auto res = outPorts.find(name);
-    if (res != outPorts.end()) {
-        return res->second;
-    } else {
-        throw std::runtime_error("Actor "s + this->toString() + "has no OutPort with name "s + name);
-    }
-}
-
-void Actor::start() {
-    finishInitialization();
-}
-
-void Actor::stop() {
-#ifdef DEBUG_ACTOR_TERMINATION
-    std::cout << " N: " << this->name << "\treceived Stop signal. " << std::endl;
-#endif
-    this->isRunning = false;
-}
-
-void Actor::runLoop() {
-    while(isRunning || triggerCount.load() > 0) {
-        upcxx::progress();
-        if (triggerCount.load() > 0) {
-            triggerCount--;
-            act();
-        }
-    }
-    
-    do {
-#ifdef DEBUG_ACTOR_TERMINATION
-        //std::cout << "RPCs: " << parentActorGraph->rpcsInFlight.load() << " LPCs: " << parentActorGraph->lpcsInFlight.load() << " N: " << this->name << std::endl;
-#endif
-        upcxx::progress();
-    } while (parentActorGraph->rpcsInFlight.load() > 0);
-    this->parentActorGraph->activeActors--;
-#ifdef DEBUG_ACTOR_TERMINATION
-    std::cout << " N: " << this->name << "\tawaiting Termination signal. " << std::endl;
-#endif
-    awaitActorGraphTermination(parentActorGraph);
-    do {
-#ifdef DEBUG_ACTOR_TERMINATION
-        std::cout << "Post Signal: RPCs: " << parentActorGraph->rpcsInFlight.load() << " LPCs: " << parentActorGraph->lpcsInFlight.load() << " N: " << this->name << std::endl;
-#endif
-        upcxx::progress();
-#ifdef ACTOR_PARALLEL_TERMINATION_HACK
-        std::this_thread::sleep_for(1s);
-#endif
-    } while (parentActorGraph->rpcsInFlight.load() > 0 || parentActorGraph->lpcsInFlight.load() > 0);
-#ifdef DEBUG_ACTOR_TERMINATION
-    std::cout << this->name << " done spinning" << std::endl;
-#endif
-}
-
-void Actor::trigger() {
-    parentActorGraph->markAsDirty(this);
-}
-
-void Actor::finishInitialization() {
-    this->actorPersona = &upcxx::current_persona();
-    this->isRunning = true;
-
-    for (auto ip : this->inPorts) {
-        ip.second->setActorPersona(this->actorPersona);
-    }
-    for (auto op : this->outPorts) {
-        op.second->setActorPersona(this->actorPersona);
-    }
+const std::shared_ptr<AbstractOutPort>
+Actor::getOutPort(const string &portName) const {
+  auto res = outPorts.find(name);
+  if (res != outPorts.end()) {
+    return res->second;
+  } else {
+    throw std::runtime_error("Actor "s + this->toString() +
+                             "has no OutPort with name "s + name);
+  }
 }

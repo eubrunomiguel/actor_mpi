@@ -2,7 +2,8 @@
  * @file
  * This file is part of actorlib.
  *
- * @author Alexander Pöppl (poeppl AT in.tum.de, https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
+ * @author Alexander Pöppl (poeppl AT in.tum.de,
+ * https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
  *
  * @section LICENSE
  *
@@ -27,9 +28,9 @@
 
 #include "AbstractOutPort.hpp"
 #include "Port.h"
-#include "utils/mpi_helper.hpp"
 #include <memory>
 #include <mutex>
+#include <string>
 
 #pragma once
 
@@ -37,26 +38,26 @@ class ActorGraph;
 class Actor;
 class AbstractInPort;
 
-template<typename T, int capacity>
-class OutPort : public AbstractOutPort {
+template <typename T, int capacity> class OutPort : public AbstractOutPort {
 
-    friend class Actor;
-    friend class ActorGraph;
+  friend class Actor;
+  friend class ActorGraph;
 
 private:
-    std::mutex lock;
+  std::mutex lock;
 
-    std::unique_ptr<PortIdentification<AbstractInPort>> otherPort;
-    std::array<std::pair<std::unique_ptr<MPI_Request>, T>, capacity> requests;
+  std::unique_ptr<PortIdentification<AbstractInPort>> otherPort;
+  std::array<std::pair<std::unique_ptr<MPI_Request>, T>, capacity> requests;
 
 public:
-    void write(const T &);
-    size_t freeCapacity() const;
-    std::string toString() const final;
-    void sendMessagesTo(std::unique_ptr<PortIdentification<AbstractInPort>>) final;
+  void write(const T &, int elementCount);
+  size_t freeCapacity() const;
+  std::string toString() const final;
+  void
+      sendMessagesTo(std::unique_ptr<PortIdentification<AbstractInPort>>) final;
 
 private:
-    OutPort<T, capacity>(const std::string& name);
-    void writeToLocal(const T &element);
-    void writeToExternal(const T &element);
+  explicit OutPort<T, capacity>(const std::string &name);
+  void writeToLocal(const T &element);
+  void writeToExternal(const T &element, int elementCount);
 };

@@ -2,7 +2,8 @@
  * @file
  * This file is part of actorlib.
  *
- * @author Alexander Pöppl (poeppl AT in.tum.de, https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
+ * @author Alexander Pöppl (poeppl AT in.tum.de,
+ * https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
  *
  * @section LICENSE
  *
@@ -28,17 +29,20 @@
 
 #pragma once
 
-class Actor;
 class AbstractInPort;
 
 class AbstractOutPort {
-    public:
-        const std::string name;
+public:
+  const PortIdentification<AbstractOutPort> myIdentification;
 
-    public:
-        virtual std::string toString() const = 0;
-        virtual void sendMessagesTo(std::unique_ptr<PortIdentification<AbstractInPort>>) = 0;
+public:
+  virtual std::string toString() const = 0;
 
-        AbstractOutPort(const std::string& name): name(name) {}
-        virtual ~AbstractOutPort() = default;
+  virtual void
+      sendMessagesTo(std::unique_ptr<PortIdentification<AbstractInPort>>) = 0;
+
+  explicit AbstractOutPort(const std::string &name)
+      : myIdentification(name, MPIHelper::myRank()) {}
+
+  virtual ~AbstractOutPort() = default;
 };

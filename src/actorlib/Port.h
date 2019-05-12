@@ -31,4 +31,4 @@ template <typename T> struct PortIdentification {
   T *const port;
 };
 
-#endif // ACTORUPCXX_PORT_H
+#endif

@@ -2,7 +2,8 @@
  * @file
  * This file is part of actorlib.
  *
- * @author Alexander Pöppl (poeppl AT in.tum.de, https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
+ * @author Alexander Pöppl (poeppl AT in.tum.de,
+ * https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
  *
  * @section LICENSE
  *
@@ -33,90 +34,72 @@
 #pragma once
 
 class AbstractInPort;
+
 class AbstractOutPort;
 
-template <typename T, int capacity>
-class Channel {
+template <typename T, int capacity> class Channel {
 
 private:
-    int lastElement;
-    int firstElement;
-    bool isFull;
-    std::array<T, capacity> queue;
-    std::mutex lock;
+  int lastElement;
+  int firstElement;
+  bool isFull;
+  std::array<T, capacity> queue;
+  std::mutex lock;
 
 public:
-    Channel();
-    int enqueue(T element);
-    T dequeue();
-    T peek();
-    size_t size();
-
-private:
-    size_t sizeInt();
+  Channel();
+  void enqueue(T element);
+  T dequeue();
+  T peek() const;
+  size_t size() const;
 };
 
 template <typename type, int capacity>
 Channel<type, capacity>::Channel()
-        : lastElement(0),
-          firstElement(0),
-          isFull(false) {
+    : lastElement(0), firstElement(0), isFull(false) {}
+
+template <typename type, int capacity>
+void Channel<type, capacity>::enqueue(type element) {
+  std::lock_guard<std::mutex> writeLock(lock);
+  if ((lastElement - firstElement) % capacity == 0 && isFull) {
+    throw std::runtime_error("Channel is full");
+  } else {
+    lastElement = (lastElement + 1) % capacity;
+    isFull = (lastElement == firstElement);
+    queue[lastElement] = element;
+  }
 }
 
 template <typename type, int capacity>
-int Channel<type, capacity>::enqueue(type element) {
-    std::lock_guard<std::mutex> writeLock(lock);
-    if ((lastElement - firstElement) % capacity == 0 && isFull) {
-        throw std::runtime_error("Channel is full");
-    } else {
-        lastElement = (lastElement + 1) % capacity;
-        isFull = (lastElement == firstElement);
-        queue[lastElement] = element;
-        return this->sizeInt();
-    }
+type Channel<type, capacity>::peek() const {
+  std::lock_guard<std::mutex> writeLock(lock);
+  if (lastElement == firstElement && !isFull) {
+    throw std::runtime_error("Channel is empty");
+  } else {
+    size_t elemPos = (firstElement + 1) % capacity;
+    type element = queue[elemPos];
+    return element;
+  }
+}
+
+template <typename type, int capacity> type Channel<type, capacity>::dequeue() {
+  std::lock_guard<std::mutex> writeLock(lock);
+  if (lastElement == firstElement && !isFull) {
+    throw std::runtime_error("Channel is empty");
+  } else {
+    firstElement = (firstElement + 1) % capacity;
+    type element = queue[firstElement];
+    isFull = false;
+    return element;
+  }
 }
 
 template <typename type, int capacity>
-type Channel<type, capacity>::peek() {
-    std::lock_guard<std::mutex> writeLock(lock);
-    if (lastElement == firstElement && !isFull) {
-        throw std::runtime_error("Channel is empty");
-    } else {
-        size_t elemPos = (firstElement + 1) % capacity;
-        type element = queue[elemPos];
-        return element;
-    }
+size_t Channel<type, capacity>::size() const {
+  std::lock_guard<std::mutex> readLock(lock);
+  int tmpLast = lastElement;
+  if (lastElement < firstElement || isFull) {
+    tmpLast += capacity;
+  }
+  return tmpLast - firstElement;
 }
-
-template <typename type, int capacity>
-type Channel<type, capacity>::dequeue() {
-    std::lock_guard<std::mutex> writeLock(lock);
-    if (lastElement == firstElement && !isFull) {
-        throw std::runtime_error("Channel is empty");
-    } else {
-        firstElement = (firstElement + 1) % capacity;
-        type element = queue[firstElement];
-        isFull = false;
-        return element;
-    }
-}
-
-template <typename type, int capacity>
-size_t Channel<type, capacity>::sizeInt() {
-    int tmpLast = lastElement;
-    if (lastElement < firstElement || isFull) {
-        tmpLast += capacity;
-    }
-    return tmpLast - firstElement;
-}
-
-template <typename type, int capacity>
-size_t Channel<type, capacity>::size() {
-    std::lock_guard<std::mutex> readLock(lock);
-    int tmpLast = lastElement;
-    if (lastElement < firstElement || isFull) {
-        tmpLast += capacity;
-    }
-    return tmpLast - firstElement;
-}
-

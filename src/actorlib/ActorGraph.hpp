@@ -2,7 +2,8 @@
  * @file
  * This file is part of actorlib.
  *
- * @author Alexander Pöppl (poeppl AT in.tum.de, https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
+ * @author Alexander Pöppl (poeppl AT in.tum.de,
+ * https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
  *
  * @section LICENSE
  *
@@ -24,64 +25,44 @@
  *
  */
 
-#include <atomic>
+#include "utils/mpi_helper.hpp"
 #include <memory>
 #include <mutex>
-#include <thread>
-#include <condition_variable>
 #include <unordered_map>
-#include "utils/mpi_helper.hpp"
-#include <upcxx/upcxx.hpp>
 
 #include "Actor.hpp"
-#include "ActorRegistration.hpp"
 
 #pragma once
 
 class ActorGraph {
 
-    friend class Actor;
-    friend void registerRpc(Actor *a);
-    friend void deregisterRpc(Actor *a);
-    friend void registerLpc(Actor *a);
-    friend void deregisterLpc(Actor *a);
-    friend void awaitGraphReadiness(Actor *a);
-    friend void awaitActorReadiness(ActorGraph *ag);
-    friend void signalActorReadiness(Actor *a);
-    friend void signalActorGraphReadiness(ActorGraph *ag);
-    friend void awaitActorGraphTermination(ActorGraph *ag);
-    friend void signalActorGraphTermination(ActorGraph *ag);
+  friend class Actor;
 
-    private:
-        std::unordered_map<std::string, MPIHelper::RankId> actors;
-        std::unordered_map<std::string, Actor *> localActors;
+private:
+  std::unordered_map<std::string, MPIHelper::RankId> actors;
+  std::unordered_map<std::string, Actor *> localActors;
 
-        upcxx::dist_object<ActorGraph *> remoteGraphComponents;
-        upcxx::persona &masterPersona;
-        std::mutex actorLock; // TODO: these locks may be removed
-        std::unordered_map<Actor *, size_t> actorTriggerCount;
-        std::atomic<int> activeActors;
-        std::atomic<int> rpcsInFlight;
-        std::atomic<int> lpcsInFlight;
-        ReadinessIndicator readinessIndicator;
+  std::mutex actorLock; // TODO: these locks may be removed
+  std::unordered_map<Actor *, size_t> actorTriggerCount;
 
-    public:
-        ActorGraph();
-        ~ActorGraph();
-        ActorGraph(ActorGraph &other) = delete;
-        ActorGraph & operator=(ActorGraph &other) = delete;
+public:
+  ActorGraph() = default;
+  ~ActorGraph();
+  ActorGraph(ActorGraph &other) = delete;
+  ActorGraph &operator=(ActorGraph &other) = delete;
 
-        void addLocalActor(Actor *a);
-        void synchronizeActors();
-        void connectPorts(const std::string &sourceActorName, const std::string &sourcePortName,
-                          const std::string &destinationActorName, const std::string &destinationPortName);
-        int getNumActors() const;
-        int getNumActorsLocal() const;
-        int getActorByName(std::string name);
-        std::string prettyPrint();
-        double run();
+  void addLocalActor(Actor *a);
+  void synchronizeActors();
+  void connectPorts(const std::string &sourceActorName,
+                    const std::string &sourcePortName,
+                    const std::string &destinationActorName,
+                    const std::string &destinationPortName);
+  int getNumActors() const;
+  int getNumActorsLocal() const;
+  MPIHelper::RankId getActorByName(const std::string &name) const;
+  std::string prettyPrint() const;
+  double run();
 
-    private:
-        void checkInsert(const std::string &actorName, int actorRank);
-        void markAsDirty(Actor *a);
+private:
+  void checkInsert(const std::string &actorName, int actorRank);
 };

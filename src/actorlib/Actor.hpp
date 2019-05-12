@@ -2,7 +2,8 @@
  * @file
  * This file is part of actorlib.
  *
- * @author Alexander Pöppl (poeppl AT in.tum.de, https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
+ * @author Alexander Pöppl (poeppl AT in.tum.de,
+ * https://www5.in.tum.de/wiki/index.php/Alexander_P%C3%B6ppl,_M.Sc.)
  *
  * @section LICENSE
  *
@@ -25,11 +26,9 @@
  *
  */
 
+#include <memory>
 #include <string>
-#include <thread>
-#include <vector>
-
-#include <upcxx/upcxx.hpp>
+#include <unordered_map>
 
 #pragma once
 
@@ -39,68 +38,30 @@ class AbstractOutPort;
 template <typename T, int capacity> class InPort;
 template <typename T, int capacity> class OutPort;
 
-
 class Actor {
 
-    friend class ActorGraph;
+  friend class ActorGraph;
 
-    private:
-        std::unordered_map<std::string, AbstractInPort *> inPorts;
-        std::unordered_map<std::string, AbstractOutPort *> outPorts;
-        std::thread actorThread;
-        upcxx::persona *actorPersona;
-        bool isRunning;
-        std::atomic<int> triggerCount;
+private:
+  std::unordered_map<std::string, std::shared_ptr<AbstractInPort>> inPorts;
+  std::unordered_map<std::string, std::shared_ptr<AbstractOutPort>> outPorts;
 
-    public: 
-        const std::string name;
+public:
+  const std::string name;
 
-    protected:
-        template <typename T, int capacity> InPort<T, capacity> * makeInPort(std::string name);
-        template <typename T, int capacity> OutPort<T, capacity> * makeOutPort(std::string name);
-        void stop();
+protected:
+  template <typename T, int capacity>
+  const std::shared_ptr<InPort<T, capacity>> makeInPort(const std::string &);
+  template <typename T, int capacity>
+  const std::shared_ptr<OutPort<T, capacity>> makeOutPort(const std::string &);
 
-    public:
-        Actor(const std::string &name);
-        virtual ~Actor();
-        Actor(Actor &other) = delete;
-        Actor & operator=(Actor &other) = delete;
-        std::string toString();
-        AbstractOutPort * getOutPort(const std::string &name);
-        AbstractInPort * getInPort(const std::string &name);
-        void trigger();
-        virtual void act() = 0;
-
-    private:
-        void start();
-        void finishInitialization();
-        void runLoop();
-
-        friend void registerRpc(Actor *a);
-        friend void deregisterRpc(Actor *a);
-        friend void registerLpc(Actor *a);
-        friend void deregisterLpc(Actor *a);
-        friend void awaitGraphReadiness(Actor *a);
-        friend void signalActorReadiness(Actor *a);
+public:
+  Actor(const std::string &name);
+  virtual ~Actor() = default;
+  Actor(Actor &other) = delete;
+  Actor &operator=(Actor &other) = delete;
+  std::string toString() const;
+  const std::shared_ptr<AbstractInPort> getInPort(const std::string &) const;
+  const std::shared_ptr<AbstractOutPort> getOutPort(const std::string &) const;
+  virtual bool act() = 0;
 };
-
-typedef upcxx::global_ptr<Actor *> GlobalActorRef;
-
-
-// BEGIN IMPLEMENTATION
-
-template <typename T, int capacity> 
-InPort<T, capacity> * Actor::makeInPort(const std::string& name) {
-    InPort<T, capacity> *ip = new InPort<T, capacity>(name);
-    ip->connectedActor = this;
-    inPorts[name] = ip;
-    return ip;
-}
-
-template <typename T, int capacity> 
-OutPort<T, capacity> * Actor::makeOutPort(const std::string& name) {
-    OutPort<T, capacity> *op = new OutPort<T, capacity>(name);
-    op->connectedActor = this;
-    outPorts[name] = op;
-    return op;
-}

@@ -3,96 +3,75 @@
 //
 
 #include <memory>
-#include <string>
-#include <sstream>
 #include <mutex>
+#include <sstream>
+#include <string>
 
-#include <upcxx/upcxx.hpp>
-
-#include "Channel.hpp"
+#include "../../backups/ActorRegistration.hpp"
 #include "AbstractInPort.hpp"
 #include "AbstractOutPort.hpp"
-#include "OutPort.hpp"
-#include "ActorRegistration.hpp"
-#include "utils/mpi_helper.hpp"
-#include "mpi.h"
+#include "Channel.hpp"
 #include "InPort.hpp"
+#include "OutPort.hpp"
+#include "mpi.h"
+#include "utils/mpi_helper.hpp"
 
-template<typename T, int capacity>
+template <typename T, int capacity>
 InPort<T, capacity>::InPort(const std::string &name)
-        : AbstractInPort(name),
-          receiveFromRank(-1),
-          receiveFromOutPort(nullptr) {
+    : AbstractInPort(name), otherPort(nullptr) {}
+
+template <typename T, int capacity>
+size_t InPort<T, capacity>::available() const {
+  return myChannel.size();
 }
 
-template<typename T, int capacity>
-size_t InPort<T, capacity>::available() {
-    std::lock_guard<std::mutex> readLock(lock);
-    if (connectedChannel != nullptr) {
-        return connectedChannel->size();
-    } else {
-        throw std::runtime_error("Unable to get size, channel not connected.");
+template <typename T, int capacity> T InPort<T, capacity>::peek() const {
+  return myChannel.peek();
+}
+
+template <typename T, int capacity>
+T InPort<T, capacity>::read(int elementCount) {
+  if (!otherPort->isConnected())
+    throw std::runtime_error(
+        std::string("Unable to read from channel, channel not connected."));
+
+  if (otherPort->isExternal()) {
+    // Todo: ideally use buffer direct in channel. It is work. It will not
+    // conflict, because I either have internal or external, there is no
+    // conflict with capacity
+    for (auto request : requests) {
+      if (request.first) {
+        // Receive
+        if (MPIHelper::hasCompleted(request.first)) {
+          myChannel.enqueue(request.second);
+          request.first = nullptr;
+        }
+      } else {
+        // Listen
+        request.first =
+            MPIHelper::IRecv(&request.second, elementCount, otherPort->rankId,
+                             myIdentification.tagIdentification);
+      }
     }
+  }
+
+  return myChannel.dequeue();
 }
 
-template<typename T, int capacity>
-T InPort<T, capacity>::peek() {
-    std::lock_guard<std::mutex> readLock(lock);
-    if (connectedChannel != nullptr) {
-        return this->connectedChannel->peek();
-    } else {
-        throw std::runtime_error("Unable to get , channel not connected.");
-    }
+template <typename T, int capacity>
+void *InPort<T, capacity>::getChannel() const {
+  return (void *)(&this->myChannel);
 }
 
-template<typename T, int capacity>
-T InPort<T, capacity>::read() {
-    std::lock_guard<std::mutex> readLock(lock);
-    if (connectedChannel != nullptr) {
-        auto cop = this->connectedChannel->connectedOutPort;
-        registerRpc(this->connectedActor);
-        upcxx::rpc(
-                cop.first,
-                [](AbstractOutPort *op, size_t newCapacity) {
-                    dynamic_cast<OutPort<T, capacity> *>(op)->updateCapacity(newCapacity);
-                    registerLpc(op->connectedActor);
-                    op->actorPersona->lpc(
-                            [op]() {
-                                op->notify();
-                            }
-                    ).then([op]() {
-                        deregisterLpc(op->connectedActor);
-                    });
-                },
-                cop.second,
-                (capacity - (connectedChannel->size() + 1))
-        ).then([this]() {
-            deregisterRpc(connectedActor);
-        });
-        return this->connectedChannel->dequeue();
-    } else {
-        throw std::runtime_error("Unable to get size, channel not connected.");
-    }
+template <typename T, int capacity>
+std::string InPort<T, capacity>::toString() const {
+  std::stringstream ss;
+  ss << "[IP-" << capacity << " ID: " << myIdentification.portName << "]";
+  return ss.str();
 }
 
-template<typename T, int capacity>
-void *InPort<T, capacity>::getChannel() {
-    return (void *) (&this->myChannel);
-}
-
-template<typename T, int capacity>
-std::string InPort<T, capacity>::toString() {
-    std::stringstream ss;
-    ss << "[IP-" << capacity << " ID: " << name << "]";
-    return ss.str();
-}
-
-template<typename T, int capacity>
-void InPort<T, capacity>::registerWithChannel() {
-    this->connectedChannel->connectedInPort = std::make_pair(upcxx::rank_me(), this);
-}
-
-template<typename T, int capacity>
-void InPort<T, capacity>::receiveMessagesFrom(std::unique_ptr<PortIdentification<AbstractOutPort>> portIdentification){
-    otherPort = std::move(portIdentification);
+template <typename T, int capacity>
+void InPort<T, capacity>::receiveMessagesFrom(
+    std::unique_ptr<PortIdentification<AbstractOutPort>> portIdentification) {
+  otherPort = std::move(portIdentification);
 }
