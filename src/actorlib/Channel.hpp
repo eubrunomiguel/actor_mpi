@@ -30,60 +30,37 @@
 #include <memory>
 #include <mutex>
 
-#include <upcxx/upcxx.hpp>
-
 #pragma once
 
 class AbstractInPort;
 class AbstractOutPort;
 
-class AbstractChannel {
-    // Dummy class to be able to hold a reference
+template <typename T, int capacity>
+class Channel {
+
+private:
+    int lastElement;
+    int firstElement;
+    bool isFull;
+    std::array<T, capacity> queue;
+    std::mutex lock;
+
+public:
+    Channel();
+    int enqueue(T element);
+    T dequeue();
+    T peek();
+    size_t size();
+
+private:
+    size_t sizeInt();
 };
 
-typedef upcxx::global_ptr<void> GlobalChannelRef;
-
 template <typename type, int capacity>
-class Channel : public AbstractChannel {
-
-    private:
-        int lastElement;
-        int firstElement;
-        bool isFull;
-        std::array<type, capacity> queue;
-        std::mutex lock;
-
-    public:
-        std::pair<upcxx::intrank_t, AbstractInPort *> connectedInPort;
-        std::pair<upcxx::intrank_t, AbstractOutPort *> connectedOutPort;
-
-    public:
-        Channel();
-        int enqueue(type element);
-        type dequeue();
-        type peek();
-        size_t size();
-        static upcxx::global_ptr<Channel<type, capacity>> createShared();
-
-    private:
-        size_t sizeInt();
-};
-
-//typedef upcxx::global_ptr<std::shared_ptr<AbstractChannel>> GlobalChannelRef;
-
-
-// BEGIN IMPLEMENTATION
-
-template <typename type, int capacity>
-Channel<type, capacity>::Channel() 
-    : lastElement(0),
-      firstElement(0),
-      isFull(false) {
-}
-
-template <typename type, int capacity>
-upcxx::global_ptr<Channel<type, capacity>> Channel<type, capacity>::createShared() {
-    return upcxx::new_<Channel<type, capacity>>();
+Channel<type, capacity>::Channel()
+        : lastElement(0),
+          firstElement(0),
+          isFull(false) {
 }
 
 template <typename type, int capacity>
@@ -93,7 +70,7 @@ int Channel<type, capacity>::enqueue(type element) {
         throw std::runtime_error("Channel is full");
     } else {
         lastElement = (lastElement + 1) % capacity;
-        isFull = (lastElement == firstElement); 
+        isFull = (lastElement == firstElement);
         queue[lastElement] = element;
         return this->sizeInt();
     }

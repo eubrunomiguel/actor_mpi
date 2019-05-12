@@ -22,31 +22,23 @@
  *
  * @section DESCRIPTION
  *
- *
  */
 
-#include <upcxx/upcxx.hpp>
-
-#include "Channel.hpp"
+#include "Port.h"
 
 #pragma once
 
 class Actor;
+class AbstractInPort;
 
 class AbstractOutPort {
     public:
-        Actor *connectedActor;
-        upcxx::persona *actorPersona;
         const std::string name;
 
     public:
-        virtual void setChannel(GlobalChannelRef channel) = 0;
-        virtual std::string toString() = 0;
-        virtual upcxx::future<> registerWithChannel() = 0;
+        virtual std::string toString() const = 0;
+        virtual void sendMessagesTo(std::unique_ptr<PortIdentification<AbstractInPort>>) = 0;
 
-        AbstractOutPort(std::string name);
-        virtual ~AbstractOutPort();
-        
-        void notify();
-        void setActorPersona(upcxx::persona *actorPersona);
+        AbstractOutPort(const std::string& name): name(name) {}
+        virtual ~AbstractOutPort() = default;
 };

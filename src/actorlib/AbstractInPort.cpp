@@ -29,7 +29,7 @@
 
 using namespace std;
 
-AbstractInPort::AbstractInPort(std::string name)
+AbstractInPort::AbstractInPort(const std::string& name)
     : name(name),
       connectedActor(nullptr),
       actorPersona(nullptr) {

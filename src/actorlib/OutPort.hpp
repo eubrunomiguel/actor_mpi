@@ -25,122 +25,38 @@
  *
  */
 
+#include "AbstractOutPort.hpp"
+#include "Port.h"
+#include "utils/mpi_helper.hpp"
 #include <memory>
 #include <mutex>
-
-#include <upcxx/upcxx.hpp>
-
-#include "Channel.hpp"
-#include "AbstractOutPort.hpp"
-#include "AbstractInPort.hpp"
-#include "ActorRegistration.hpp"
 
 #pragma once
 
 class ActorGraph;
 class Actor;
+class AbstractInPort;
 
-template <typename T, int capacity>
+template<typename T, int capacity>
 class OutPort : public AbstractOutPort {
 
     friend class Actor;
     friend class ActorGraph;
 
-    private: 
-        upcxx::global_ptr<Channel<T, capacity>> remoteChannel;
-        int unusedCapacity;
-        std::mutex lock;
-        
-    public:
-        void write(T element);
-        size_t freeCapacity();
-        void updateCapacity(size_t newVal);
-        std::string toString();
-        upcxx::future<> registerWithChannel();
-        void setChannel(GlobalChannelRef newChannel);
-    
-    private:
-        OutPort<T, capacity>(std::string name);
+private:
+    std::mutex lock;
+
+    std::unique_ptr<PortIdentification<AbstractInPort>> otherPort;
+    std::array<std::pair<std::unique_ptr<MPI_Request>, T>, capacity> requests;
+
+public:
+    void write(const T &);
+    size_t freeCapacity() const;
+    std::string toString() const final;
+    void sendMessagesTo(std::unique_ptr<PortIdentification<AbstractInPort>>) final;
+
+private:
+    OutPort<T, capacity>(const std::string& name);
+    void writeToLocal(const T &element);
+    void writeToExternal(const T &element);
 };
-
-template <typename T, int capacity>
-OutPort<T, capacity>::OutPort(std::string name)
-    : AbstractOutPort(name),
-      remoteChannel(nullptr),
-      unusedCapacity(capacity) {
-}
-
-template <typename T, int capacity>
-size_t OutPort<T, capacity>::freeCapacity() {
-    std::lock_guard<std::mutex> writeLock(lock);
-    return this->unusedCapacity;
-}
-
-template <typename T, int capacity>
-void OutPort<T, capacity>::updateCapacity(size_t newVal) {
-    std::lock_guard<std::mutex> writeLock(lock);
-    //std::cout << "updating capacity to " << newVal << std::endl;
-    unusedCapacity = newVal;
-}
-
-template <typename T, int capacity>
-void OutPort<T, capacity>::setChannel(GlobalChannelRef newChannel) {
-    this->remoteChannel = upcxx::reinterpret_pointer_cast<Channel<T, capacity>>(newChannel);
-}
-
-template <typename T, int capacity>
-void OutPort<T, capacity>::write(T element) {
-    // we need the rank to where write here, and memory information to deposit a one-sided communication
-    std::lock_guard<std::mutex> writeLock(lock);
-    if (remoteChannel == nullptr) {
-        throw std::runtime_error(std::string("Unable to write to channel, channel not connected. Channel: ") 
-                + std::to_string(remoteChannel.where()) + " " + std::to_string((size_t) remoteChannel.local()));
-    }
-    if (unusedCapacity == 0) {
-        throw std::runtime_error("No free space in channel!");
-    }
-    this->unusedCapacity--;
-    registerRpc(connectedActor);
-    upcxx::rpc(
-        remoteChannel.where(), 
-        [](upcxx::global_ptr<Channel<T, capacity>> remoteChannel, T data) {
-            remoteChannel.local()->enqueue(data);
-            AbstractInPort *cip = remoteChannel.local()->connectedInPort.second;
-            upcxx::persona *actorPersona = cip->actorPersona; 
-            registerLpc(cip->connectedActor);
-            actorPersona->lpc(
-                [cip] () { 
-                    cip->notify(); 
-                }
-            ).then([cip]() {
-                deregisterLpc(cip->connectedActor);
-            });
-        }, 
-        remoteChannel, 
-        element
-    ).then([this]() { 
-        deregisterRpc(this->connectedActor); 
-    });
-}
-
-template <typename T, int capacity>
-std::string OutPort<T, capacity>::toString() {
-    std::stringstream ss;
-    ss << "[OP-" << capacity << " ID: " << name <<  " C: " << this->remoteChannel << "]"; 
-    return ss.str();
-}
-
-template <typename T, int capacity>
-upcxx::future<> OutPort<T, capacity>::registerWithChannel() {
-    upcxx::intrank_t opRank = upcxx::rank_me();
-    AbstractOutPort *cop = this;
-    return upcxx::rpc(
-        this->remoteChannel.where(),
-        [](upcxx::global_ptr<Channel<T, capacity>> c, upcxx::intrank_t opRank, AbstractOutPort *cop) {
-            c.local()->connectedOutPort = std::make_pair(opRank, cop);                
-        },
-        this->remoteChannel,
-        opRank,
-        cop
-    );
-}

@@ -33,7 +33,7 @@
 std::string PingPongActor::IN_PORT_NAME = "IN";
 std::string PingPongActor::OUT_PORT_NAME = "OUT";
 
-PingPongActor::PingPongActor(std::string name) :
+PingPongActor::PingPongActor(const std::string &name) :
     Actor(name),
     ip(makeInPort<size_t, 10>(IN_PORT_NAME)),
     op(makeOutPort<size_t, 10>(OUT_PORT_NAME)),

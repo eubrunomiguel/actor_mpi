@@ -24,96 +24,83 @@
  *
  */
 
-#include "ActorGraph.hpp"
+#include <chrono>
+#include "mpi.h"
 
+#include "ActorGraph.hpp"
 
 #include "Actor.hpp"
 #include "AbstractInPort.hpp"
 #include "AbstractOutPort.hpp"
 #include "Channel.hpp"
-#include "config.hpp"
-#include <mpi.h>
-
-#include <chrono>
+#include "utils/config.hpp"
+#include "utils/mpi_helper.hpp"
+#include "Port.h"
 
 //#define DEBUG_ACTOR_TERMINATION
 #define ACTOR_PARALLEL_TERMINATION_HACK
 
-
 using namespace std;
 
-GlobalChannelRef connectDestination(GlobalActorRef destinationActor, std::string destinationPortName);
-upcxx::future<> connectSource(GlobalActorRef sourceActor, std::string sourcePortName, GlobalChannelRef channelRef);
-
-// ActorGraph instance methods
-
-ActorGraph::ActorGraph() 
-    : localActors(0),
-      remoteGraphComponents(this),
-      masterPersona(upcxx::master_persona()),
-      activeActors(0),
-      rpcsInFlight(0),
-      lpcsInFlight(0) {
+ActorGraph::ActorGraph()
+        : localActors(0),
+          remoteGraphComponents(this),
+          masterPersona(upcxx::master_persona()),
+          activeActors(0),
+          rpcsInFlight(0),
+          lpcsInFlight(0) {
     if (!upcxx::rank_me()) {
         std::cout << config::configToString();
     }
 }
 
-void ActorGraph::addActor(Actor *a) {
-    int myRank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-    checkInsert(a->name, myRank);
-
-    a->parentActorGraph = this;
-    localActors++;
+void ActorGraph::addLocalActor(Actor *a) {
+    localActors.emplace(a->name, a);
 }
 
 void ActorGraph::synchronizeActors() {
-    // Load world information
-    int worldSize;
-    MPI_Comm_size(MPI_COMM_WORLD, &worldSize);
+    int worldSize = MPIHelper::worldSize();
 
-    // Exchange local number of actors per rank
-    int *numActorsPerRank = (int *)malloc(sizeof(int) * worldSize);
-    MPI_Allgather(&localActors, 1, MPI_INT, numActorsPerRank, 1, MPI_INT, MPI_COMM_WORLD);
+    // Exchange local number of actors
+    int *numActorsPerRank = (int *) malloc(sizeof(int) * worldSize);
+    int totalLocalActors = getNumActorsLocal();
+    MPI_Allgather(&totalLocalActors, 1, MPI_INT, numActorsPerRank, 1, MPI_INT, MPI_COMM_WORLD);
 
     int totalActors = 0;
-    for (int i = 0; i < worldSize; i++){
+    for (int i = 0; i < worldSize; i++) {
         totalActors += numActorsPerRank[i];
     }
 
     // Exchange Actors
-    // TODO: only int at the moment, need the name as well
+    // TODO: only int at the moment, need a user-defined data type
 
     // Current map to flat array
-    int *myActors = (int *)malloc(sizeof(int) * actors.size());
+    int *myActors = (int *) malloc(sizeof(int) * getNumActorsLocal());
     int myActorsIndex = 0;
-    for (std::pair<std::string, int> element : actors){
+    for (std::pair<std::string, int> element : actors) {
         myActors[myActorsIndex] = element.second;
         myActorsIndex++;
     }
 
-    int *displacement = (int *)malloc(sizeof(int) * worldSize);
+    int *displacement = (int *) malloc(sizeof(int) * worldSize);
     displacement[0] = 0;
     int currentIndex = 0;
-    for (int i = 1; i < worldSize; i++){
-        displacement[i] = numActorsPerRank[i-1] + currentIndex;
+    for (int i = 1; i < worldSize; i++) {
+        displacement[i] = numActorsPerRank[i - 1] + currentIndex;
         currentIndex = displacement[i];
     }
 
-    int *globalActors = (int *)malloc(sizeof(int) * totalActors);
+    int *globalActors = (int *) malloc(sizeof(int) * totalActors);
     MPI_Allgatherv(myActors,
-            localActors,
-            MPI_INT,
-            globalActors,
-            numActorsPerRank,
-            displacement,
-            MPI_INT,
-            MPI_COMM_WORLD);
+                   localActors,
+                   MPI_INT,
+                   globalActors,
+                   numActorsPerRank,
+                   displacement,
+                   MPI_INT,
+                   MPI_COMM_WORLD);
 
-    // Flat global actors or map
-    for (int i = 0; i < totalActors; i++){
-        // TODO: do not add our locals
+    for (int i = 0; i < totalActors; i++) {
         this->checkInsert("Name not defined by mpi structure", globalActors[i]);
     }
 
@@ -123,59 +110,72 @@ void ActorGraph::synchronizeActors() {
     free(globalActors);
 }
 
-void ActorGraph::checkInsert(std::string actorName, int actorRank) {
-    if (this->actors.find(actorName) != this->actors.end()) {
+void ActorGraph::checkInsert(const string &actorName, int actorRank) {
+    // TODO: Need lock here?
+    if (this->actors.find(actorName) != this->actors.end())
         throw std::runtime_error("May not add actor that is already existing.");
-    }    
-    this->actorLock.lock();
     this->actors.emplace(actorName, actorRank);
-    this->actorLock.unlock();
 }
 
-void ActorGraph::connectPorts(int sourceActor, std::string sourcePortName, int destinationActor, std::string destinationPortName) {
-    // upcxx::future<R> upcxx::rpc(intrank_t r, F &&func, Args &&...args);
-    //    This executes function func on rank r and returns the result as a future of type R
+void ActorGraph::connectPorts(const string &sourceActorName, const string &sourcePortName,
+                              const string &destinationActorName, const string &destinationPortName) {
+    auto srcLocalActorIt = localActors.find(sourceActorName);
+    auto destLocalActorIt = localActors.find(destinationActorName);
 
-    int myRank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
+    // TODO: handle the case for me!? there was not this case onm wold implementation
 
-    if (destinationActor == myRank)
-        connectFromDestination(sourceActor, sourcePortName, destinationActor, destinationPortName);
-    else if (sourceActor == myRank)
-        connectFromSource(sourceActor, sourcePortName, destinationActor, destinationPortName);
-    else
-        connectFromThird(sourceActor, sourcePortName, destinationActor, destinationPortName);
+    if (destLocalActorIt != localActors.end()) {
+        // Destination is local
+        // inPort || destinated Actor holds the channel
+        // It is responsible to warn writter when it has been read
+        auto actorPtr = destLocalActorIt->second;
+        auto destInPort = actorPtr->getInPort(destinationPortName);
 
+        if (srcLocalActorIt != localActors.end()) {
+            // localToLocal
+            auto srcOutPort = srcLocalActorIt->second->getOutPort(sourcePortName);
+            destInPort->receiveMessagesFrom(std::make_unique<PortIdentification<AbstractOutPort>>(srcOutPort));
+        } else {
+            // remoteToLocal
+            auto actorIt = actors.find(sourceActorName);
+            if (actorIt == actors.end())
+                throw std::runtime_error("Cannot find source actor.");
+            destInPort->receiveMessagesFrom(
+                    std::make_unique<PortIdentification<AbstractOutPort>>(sourcePortName, actorIt->second));
+        }
+
+        return;
+    }
+
+    if (srcLocalActorIt != localActors.end()) {
+        // Source is Local
+        auto actorPtr = srcLocalActorIt->second;
+        auto srcOutPort = actorPtr->getOutPort(sourcePortName);
+
+        if (destLocalActorIt != localActors.end()) {
+            // localToLocal
+            auto destInPort = destLocalActorIt->second->getInPort(destinationPortName);
+            srcOutPort->sendMessagesTo(std::make_unique<PortIdentification<AbstractInPort>>(destInPort));
+        } else {
+            // localToRemote
+            auto actorIt = actors.find(destinationActorName);
+            if (actorIt == actors.end())
+                throw std::runtime_error("Cannot find destinated actor.");
+            srcOutPort->sendMessagesTo(
+                    std::make_unique<PortIdentification<AbstractInPort>>(destinationPortName, actorIt->second));
+        }
+
+        return;
+    }
+
+    throw std::runtime_error("Cannot connect two external actors.");
 }
 
-void ActorGraph::connectFromDestination(int sourceActor, std::string sourcePortName, int destinationActor, std::string destinationPortName) {
-    GlobalChannelRef c = connectDestination(destinationActor, destinationPortName);
-    auto srcFut = upcxx::rpc(sourceActor.where(), connectSource, sourceActor, sourcePortName, c);
+int ActorGraph::getNumActors() const {
+    return actors.size();
 }
 
-void ActorGraph::connectFromSource(GlobalActorRef sourceActor, std::string sourcePortName, GlobalActorRef destinationActor, std::string destinationPortName) {
-    upcxx::future<GlobalChannelRef> channelFut = upcxx::rpc(destinationActor.where(), connectDestination, destinationActor, destinationPortName);
-    upcxx::future<> sourceDone = channelFut.then([=](GlobalChannelRef c) {
-        upcxx::future<> sourceRpcDone = upcxx::rpc(sourceActor.where(), connectSource, sourceActor, sourcePortName, c);
-        return sourceRpcDone;
-    });
-}
-
-void ActorGraph::connectFromThird(GlobalActorRef sourceActor, std::string sourcePortName, GlobalActorRef destinationActor, std::string destinationPortName) {
-    upcxx::future<> allDone = upcxx::rpc(
-        sourceActor.where(), 
-        [] (upcxx::dist_object<ActorGraph *> &rag,  GlobalActorRef sourceActor, std::string sourcePortName, GlobalActorRef destinationActor, std::string destinationPortName) {
-            return (*rag)->connectFromSource(sourceActor, sourcePortName, destinationActor, destinationPortName);
-        }, 
-        this->remoteGraphComponents, 
-        sourceActor, 
-        sourcePortName, 
-        destinationActor, 
-        destinationPortName
-    );
-}
-
-int ActorGraph::getNumActors() {
+int ActorGraph::getNumActorsLocal() const {
     return actors.size();
 }
 
@@ -235,24 +235,6 @@ double ActorGraph::run() {
 
     upcxx::barrier();
     return runTime;
-}
-
-// Non-instance methods
-
-GlobalChannelRef connectDestination(GlobalActorRef destinationActor, std::string destinationPortName) {
-    auto dstActorPtr = *(destinationActor.local());
-    auto dstIp = dstActorPtr->getInPort(destinationPortName);
-    auto channelRef = dstIp->getChannel();
-    dstIp->registerWithChannel();
-    return channelRef;
-}
-
-upcxx::future<> connectSource(GlobalActorRef sourceActor, std::string sourcePortName, GlobalChannelRef channelRef) {
-    auto srcActorPtr = *(sourceActor.local());
-    auto srcOp = srcActorPtr->getOutPort(sourcePortName);
-    srcOp->setChannel(channelRef);
-    auto regFut = srcOp->registerWithChannel();
-    return regFut;
 }
 
 ActorGraph::~ActorGraph() {

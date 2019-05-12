@@ -30,14 +30,13 @@
 #include <thread>
 #include <condition_variable>
 #include <unordered_map>
-
+#include "utils/mpi_helper.hpp"
 #include <upcxx/upcxx.hpp>
 
 #include "Actor.hpp"
 #include "ActorRegistration.hpp"
 
 #pragma once
-
 
 class ActorGraph {
 
@@ -54,8 +53,9 @@ class ActorGraph {
     friend void signalActorGraphTermination(ActorGraph *ag);
 
     private:
-        std::unordered_map<std::string, int> actors;
-        size_t localActors;
+        std::unordered_map<std::string, MPIHelper::RankId> actors;
+        std::unordered_map<std::string, Actor *> localActors;
+
         upcxx::dist_object<ActorGraph *> remoteGraphComponents;
         upcxx::persona &masterPersona;
         std::mutex actorLock; // TODO: these locks may be removed
@@ -65,25 +65,23 @@ class ActorGraph {
         std::atomic<int> lpcsInFlight;
         ReadinessIndicator readinessIndicator;
 
-
     public:
         ActorGraph();
         ~ActorGraph();
         ActorGraph(ActorGraph &other) = delete;
         ActorGraph & operator=(ActorGraph &other) = delete;
 
-        void addActor(Actor *a);
+        void addLocalActor(Actor *a);
         void synchronizeActors();
-        void connectPorts(int sourceActor, std::string sourcePortName, int destinationActor, std::string destinationPortName);
-        int getNumActors();
+        void connectPorts(const std::string &sourceActorName, const std::string &sourcePortName,
+                          const std::string &destinationActorName, const std::string &destinationPortName);
+        int getNumActors() const;
+        int getNumActorsLocal() const;
         int getActorByName(std::string name);
         std::string prettyPrint();
         double run();
-        
+
     private:
-        void checkInsert(std::string actorName, int actorRank);
-        void connectFromDestination(int sourceActor, std::string sourcePortName, int destinationActor, std::string destinationPortName);
-        void connectFromSource(int sourceActor, std::string sourcePortName, int destinationActor, std::string destinationPortName);
-        void connectFromThird(int sourceActor, std::string sourcePortName, int destinationActor, std::string destinationPortName);
+        void checkInsert(const std::string &actorName, int actorRank);
         void markAsDirty(Actor *a);
 };

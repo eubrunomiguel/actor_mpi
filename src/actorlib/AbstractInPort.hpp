@@ -27,10 +27,13 @@
 #include <upcxx/upcxx.hpp>
 
 #include "Channel.hpp"
+#include "Port.h"
+#include "utils/mpi_helper.hpp"
 
 #pragma once
 
 class Actor;
+class AbstractOutPort;
 
 class AbstractInPort {
     public:
@@ -39,11 +42,12 @@ class AbstractInPort {
         upcxx::persona *actorPersona;
 
     public:
-        virtual GlobalChannelRef getChannel() = 0;
+        virtual void* getChannel() = 0;
         virtual std::string toString() = 0;
         virtual void registerWithChannel() = 0;
-        
-        AbstractInPort(std::string name);
+        virtual void receiveMessagesFrom(std::unique_ptr<PortIdentification<AbstractOutPort>>) = 0;
+
+        AbstractInPort(const std::string& name);
         virtual ~AbstractInPort();
         
         void setActorPersona(upcxx::persona *actorPersona);

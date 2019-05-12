@@ -28,7 +28,7 @@
 
 #include "InPort.hpp"
 #include "OutPort.hpp"
-#include "config.hpp"
+#include "utils/config.hpp"
 
 #include "ActorGraph.hpp"
 
@@ -41,9 +41,8 @@
 using namespace std;
 using namespace std::string_literals;
 
-Actor::Actor(std::string name)
-    : parentActorGraph(nullptr),
-      actorPersona(nullptr),
+Actor::Actor(const string &name)
+    : actorPersona(nullptr),
       isRunning(false),
       triggerCount(0),
       name(name) {
@@ -71,7 +70,7 @@ std::string Actor::toString() {
     return ss.str();
 }
 
-AbstractInPort * Actor::getInPort(std::string name) {
+AbstractInPort * Actor::getInPort(const string &name) {
     auto res = inPorts.find(name);
     if (res != inPorts.end()) {
         return res->second;
@@ -80,7 +79,7 @@ AbstractInPort * Actor::getInPort(std::string name) {
     }
 }
 
-AbstractOutPort * Actor::getOutPort(string name) {
+AbstractOutPort * Actor::getOutPort(const string &name) {
     auto res = outPorts.find(name);
     if (res != outPorts.end()) {
         return res->second;
@@ -98,7 +97,6 @@ void Actor::stop() {
     std::cout << " N: " << this->name << "\treceived Stop signal. " << std::endl;
 #endif
     this->isRunning = false;
-    this->parentActorGraph->activeActors--;
 }
 
 void Actor::runLoop() {

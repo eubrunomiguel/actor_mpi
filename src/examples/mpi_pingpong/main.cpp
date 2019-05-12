@@ -32,42 +32,32 @@
 
 #include "PingPongActor.hpp"
 
-#include "actorlib/ActorGraph.hpp"
 #include "actorlib/Actor.hpp"
-
+#include "actorlib/ActorGraph.hpp"
+#include "actorlib/utils/mpi_helper.hpp"
 
 using namespace std;
 using namespace std::string_literals;
 
-std::string getNext(int myActorIdx, int actorsPerPlace) {
-    if (myActorIdx == actorsPerPlace - 1) {
-        return "A-"s + to_string((upcxx::rank_me() + 1) % upcxx::rank_n()) + "-0"s;
-    } else {
-        return "A-"s + to_string(upcxx::rank_me()) + "-"s + to_string(myActorIdx + 1);
-    }
-}
-
-std::string getName(int actorIdx) {
-    return "A-"s + to_string(upcxx::rank_me()) + "-"s + to_string(actorIdx);
+std::string getActorName(MPIHelper::RankId actorIdx) {
+    return "A-"s + to_string(actorIdx);
 }
 
 int main(int argc, const char **argv) {
     MPI_Init(NULL, NULL);
     upcxx::init();
 
-    int myRank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &myRank);
-
     ActorGraph ag;
-    Actor * myActor = new PingPongActor("A-"s + to_string(myRank));
-    ag.addActor(myActor);
+    const string myActorName = getActorName(MPIHelper::myRank());
+    Actor * myActor = new PingPongActor(myActorName);
+    ag.addLocalActor(myActor);
     ag.synchronizeActors();
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    int otherActorRank = myRank == 1 ? 0 : 1;
+    MPIHelper::RankId otherActorRank = MPIHelper::myRank() == 1 ? 0 : 1;
 
-    ag.connectPorts(myRank, PingPongActor::OUT_PORT_NAME, otherActorRank, PingPongActor::IN_PORT_NAME);
+    ag.connectPorts(myActorName, PingPongActor::OUT_PORT_NAME, getActorName(otherActorRank), PingPongActor::IN_PORT_NAME);
 
     ag.run();
 

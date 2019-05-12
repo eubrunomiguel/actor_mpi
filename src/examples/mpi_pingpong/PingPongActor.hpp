@@ -41,6 +41,6 @@ class PingPongActor : public Actor {
         bool begin;
 
     public:
-        PingPongActor(std::string name);
+        PingPongActor(const std::string &name);
         void act();
 };
