@@ -28,6 +28,7 @@
 #include <array>
 #include <complex>
 #include <list>
+#include <vector>
 
 namespace mpi {
 
@@ -55,26 +56,26 @@ template <class T> struct mpi_type_traits {
     return MpiType;                                                            \
   }
 
-PRIMITIVE(char, MPI::CHAR);
-PRIMITIVE(wchar_t, MPI::WCHAR);
-PRIMITIVE(short, MPI::SHORT);
-PRIMITIVE(int, MPI::INT);
-PRIMITIVE(long, MPI::LONG);
-PRIMITIVE(signed char, MPI::SIGNED_CHAR);
-PRIMITIVE(unsigned char, MPI::UNSIGNED_CHAR);
-PRIMITIVE(unsigned short, MPI::UNSIGNED_SHORT);
-PRIMITIVE(unsigned int, MPI::UNSIGNED);
-PRIMITIVE(unsigned long, MPI::UNSIGNED_LONG);
-PRIMITIVE(unsigned long long, MPI::UNSIGNED_LONG_LONG);
+PRIMITIVE(char, MPI_CHAR);
+PRIMITIVE(wchar_t, MPI_WCHAR);
+PRIMITIVE(short, MPI_SHORT);
+PRIMITIVE(int, MPI_INT);
+PRIMITIVE(long, MPI_LONG);
+PRIMITIVE(signed char, MPI_SIGNED_CHAR);
+PRIMITIVE(unsigned char, MPI_UNSIGNED_CHAR);
+PRIMITIVE(unsigned short, MPI_UNSIGNED_SHORT);
+PRIMITIVE(unsigned int, MPI_UNSIGNED);
+PRIMITIVE(unsigned long, MPI_UNSIGNED_LONG);
+PRIMITIVE(unsigned long long, MPI_UNSIGNED_LONG_LONG);
 
-PRIMITIVE(float, MPI::FLOAT);
-PRIMITIVE(double, MPI::DOUBLE);
-PRIMITIVE(long double, MPI::LONG_DOUBLE);
+PRIMITIVE(float, MPI_FLOAT);
+PRIMITIVE(double, MPI_DOUBLE);
+PRIMITIVE(long double, MPI_LONG_DOUBLE);
 
-PRIMITIVE(bool, MPI::BOOL);
-PRIMITIVE(std::complex<float>, MPI::COMPLEX);
-PRIMITIVE(std::complex<double>, MPI::DOUBLE_COMPLEX);
-PRIMITIVE(std::complex<long double>, MPI::LONG_DOUBLE_COMPLEX);
+PRIMITIVE(bool, MPI_C_BOOL);
+PRIMITIVE(std::complex<float>, MPI_COMPLEX);
+PRIMITIVE(std::complex<double>, MPI_DOUBLE_COMPLEX);
+PRIMITIVE(std::complex<long double>, MPI_C_LONG_DOUBLE_COMPLEX);
 
 #undef PRIMITIVE
 
