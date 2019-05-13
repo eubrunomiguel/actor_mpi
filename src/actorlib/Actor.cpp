@@ -69,8 +69,7 @@ std::string Actor::toString() const {
   return ss.str();
 }
 
-const std::shared_ptr<AbstractInPort>
-Actor::getInPort(const string &portName) const {
+shared_ptr<AbstractInPort> Actor::getInPort(const string &portName) const {
   auto res = inPorts.find(portName);
   if (res != inPorts.end()) {
     return res->second;
@@ -80,8 +79,7 @@ Actor::getInPort(const string &portName) const {
   }
 }
 
-const std::shared_ptr<AbstractOutPort>
-Actor::getOutPort(const string &portName) const {
+shared_ptr<AbstractOutPort> Actor::getOutPort(const string &portName) const {
   auto res = outPorts.find(name);
   if (res != outPorts.end()) {
     return res->second;

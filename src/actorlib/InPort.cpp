@@ -18,7 +18,7 @@
 
 template <typename T, int capacity>
 InPort<T, capacity>::InPort(const std::string &name)
-    : AbstractInPort(name), otherPort(nullptr) {}
+    : AbstractInPort(name), otherPortIdentification(nullptr) {}
 
 template <typename T, int capacity>
 size_t InPort<T, capacity>::available() const {
@@ -31,11 +31,11 @@ template <typename T, int capacity> T InPort<T, capacity>::peek() const {
 
 template <typename T, int capacity>
 T InPort<T, capacity>::read(int elementCount) {
-  if (!otherPort->isConnected())
+  if (!otherPortIdentification.isConnected())
     throw std::runtime_error(
         std::string("Unable to read from channel, channel not connected."));
 
-  if (otherPort->isExternal()) {
+  if (otherPortIdentification.isExternal()) {
     // Todo: ideally use buffer direct in channel. It is work. It will not
     // conflict, because I either have internal or external, there is no
     // conflict with capacity
@@ -48,9 +48,9 @@ T InPort<T, capacity>::read(int elementCount) {
         }
       } else {
         // Listen
-        request.first =
-            MPIHelper::IRecv(&request.second, elementCount, otherPort->rankId,
-                             myIdentification.tagIdentification);
+        request.first = MPIHelper::IRecv(&request.second, elementCount,
+                                         otherPortIdentification.getRank(),
+                                         myIdentification.getTag());
       }
     }
   }
@@ -66,12 +66,12 @@ void *InPort<T, capacity>::getChannel() const {
 template <typename T, int capacity>
 std::string InPort<T, capacity>::toString() const {
   std::stringstream ss;
-  ss << "[IP-" << capacity << " ID: " << myIdentification.portName << "]";
+  ss << "[IP-" << capacity << " ID: " << myIdentification.getName() << "]";
   return ss.str();
 }
 
 template <typename T, int capacity>
 void InPort<T, capacity>::receiveMessagesFrom(
-    std::unique_ptr<PortIdentification<AbstractOutPort>> portIdentification) {
-  otherPort = std::move(portIdentification);
+    PortIdentification<AbstractOutPort> portIdentification) {
+  otherPortIdentification = portIdentification;
 }

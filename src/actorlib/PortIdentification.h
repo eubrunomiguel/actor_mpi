@@ -9,14 +9,15 @@
 #include "utils/mpi_helper.hpp"
 #include <string>
 
-template <typename T> struct PortIdentification {
+template <typename T> class PortIdentification {
+public:
   PortIdentification() = default;
 
   PortIdentification(const std::string &portName, MPIHelper::RankId rankId)
       : tagIdentification(helper::compute_hash(portName)), portName(portName),
         rankId(rankId), port(nullptr) {}
 
-  explicit PortIdentification(T *port)
+  explicit PortIdentification(std::shared_ptr<T> port)
       : tagIdentification(0), rankId(MPIHelper::InvalidRankId), port(port) {}
 
   bool isLocal() const { return port != nullptr; }
@@ -25,10 +26,19 @@ template <typename T> struct PortIdentification {
 
   bool isConnected() const { return isLocal() || isExternal(); }
 
+  auto getRank() { return rankId; }
+
+  auto getName() { return portName; }
+
+  auto getTag() { return rankId; }
+
+  auto getPort() { return port.get(); }
+
+private:
   const int tagIdentification;
   const std::string portName;
   const MPIHelper::RankId rankId;
-  T *const port;
+  std::shared_ptr<T> port;
 };
 
 #endif

@@ -61,7 +61,8 @@ public:
   Actor(Actor &other) = delete;
   Actor &operator=(Actor &other) = delete;
   std::string toString() const;
-  const std::shared_ptr<AbstractInPort> getInPort(const std::string &) const;
-  const std::shared_ptr<AbstractOutPort> getOutPort(const std::string &) const;
+  std::shared_ptr<AbstractInPort> getInPort(const std::string &portName) const;
+  std::shared_ptr<AbstractOutPort>
+  getOutPort(const std::string &portName) const;
   virtual bool act() = 0;
 };

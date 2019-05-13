@@ -31,7 +31,8 @@
 #include <string>
 
 #include "AbstractInPort.hpp"
-#include "Port.h"
+#include "Channel.hpp"
+#include "PortIdentification.h"
 
 #pragma once
 
@@ -45,7 +46,7 @@ template <typename T, int capacity> class InPort : public AbstractInPort {
 private:
   Channel<T, capacity> myChannel;
 
-  std::unique_ptr<PortIdentification<AbstractOutPort>> otherPort;
+  PortIdentification<AbstractOutPort> otherPortIdentification;
   std::array<std::pair<std::unique_ptr<MPI_Request>, T>, capacity> requests;
 
 public:
@@ -53,8 +54,7 @@ public:
   T peek() const;
   size_t available() const;
   std::string toString() const final;
-  void receiveMessagesFrom(
-      std::unique_ptr<PortIdentification<AbstractOutPort>>) final;
+  void receiveMessagesFrom(PortIdentification<AbstractOutPort>) final;
 
 private:
   explicit InPort<T, capacity>(const std::string &name);

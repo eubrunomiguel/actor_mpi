@@ -25,7 +25,7 @@
  *
  */
 
-#include "Port.h"
+#include "PortIdentification.h"
 
 #pragma once
 
@@ -38,8 +38,7 @@ public:
 public:
   virtual std::string toString() const = 0;
 
-  virtual void
-      sendMessagesTo(std::unique_ptr<PortIdentification<AbstractInPort>>) = 0;
+  virtual void sendMessagesTo(PortIdentification<AbstractInPort>) = 0;
 
   explicit AbstractOutPort(const std::string &name)
       : myIdentification(name, MPIHelper::myRank()) {}

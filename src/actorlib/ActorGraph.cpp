@@ -34,7 +34,7 @@
 #include "AbstractOutPort.hpp"
 #include "Actor.hpp"
 #include "Channel.hpp"
-#include "Port.h"
+#include "PortIdentification.h"
 #include "utils/mpi_helper.hpp"
 
 using namespace std;
@@ -75,8 +75,8 @@ void ActorGraph::synchronizeActors() {
   }
 
   int *globalActors = (int *)malloc(sizeof(int) * totalActors);
-  MPI_Allgatherv(myActors, localActors, MPI_INT, globalActors, numActorsPerRank,
-                 displacement, MPI_INT, MPI_COMM_WORLD);
+  MPI_Allgatherv(myActors, getNumActorsLocal(), MPI_INT, globalActors,
+                 numActorsPerRank, displacement, MPI_INT, MPI_COMM_WORLD);
 
   for (int i = 0; i < totalActors; i++) {
     this->checkInsert("Name not defined by mpi structure", globalActors[i]);
@@ -116,15 +116,14 @@ void ActorGraph::connectPorts(const string &sourceActorName,
       // localToLocal
       auto srcOutPort = srcLocalActorIt->second->getOutPort(sourcePortName);
       destInPort->receiveMessagesFrom(
-          std::make_unique<PortIdentification<AbstractOutPort>>(srcOutPort));
+          PortIdentification<AbstractOutPort>(srcOutPort));
     } else {
       // remoteToLocal
       auto actorIt = actors.find(sourceActorName);
       if (actorIt == actors.end())
         throw std::runtime_error("Cannot find source actor.");
       destInPort->receiveMessagesFrom(
-          std::make_unique<PortIdentification<AbstractOutPort>>(
-              sourcePortName, actorIt->second));
+          PortIdentification<AbstractOutPort>(sourcePortName, actorIt->second));
     }
   }
 
@@ -138,15 +137,14 @@ void ActorGraph::connectPorts(const string &sourceActorName,
       auto destInPort =
           destLocalActorIt->second->getInPort(destinationPortName);
       srcOutPort->sendMessagesTo(
-          std::make_unique<PortIdentification<AbstractInPort>>(destInPort));
+          PortIdentification<AbstractInPort>(destInPort));
     } else {
       // localToRemote
       auto actorIt = actors.find(destinationActorName);
       if (actorIt == actors.end())
         throw std::runtime_error("Cannot find destined actor.");
-      srcOutPort->sendMessagesTo(
-          std::make_unique<PortIdentification<AbstractInPort>>(
-              destinationPortName, actorIt->second));
+      srcOutPort->sendMessagesTo(PortIdentification<AbstractInPort>(
+          destinationPortName, actorIt->second));
     }
   }
 }
@@ -155,7 +153,7 @@ int ActorGraph::getNumActors() const { return actors.size(); }
 
 int ActorGraph::getNumActorsLocal() const { return actors.size(); }
 
-int ActorGraph::getActorByName(std::string name) {
+MPIHelper::RankId ActorGraph::getActorByName(const std::string &name) const {
   auto entry = actors.find(name);
   if (entry != actors.end()) {
     return entry->second;

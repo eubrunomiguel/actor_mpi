@@ -13,7 +13,7 @@
 
 template <typename T, int capacity>
 OutPort<T, capacity>::OutPort(const std::string &name)
-    : AbstractOutPort(name), otherPort(nullptr) {}
+    : AbstractOutPort(name), otherPortIdentification(nullptr) {}
 
 template <typename T, int capacity>
 size_t OutPort<T, capacity>::freeCapacity() const {
@@ -30,20 +30,21 @@ void OutPort<T, capacity>::write(const T &element, int elementCount) {
   if (freeCapacity() == 0)
     throw std::runtime_error("No free space in channel!");
 
-  if (!otherPort->isConnected())
-        throw std::runtime_error(std::string("Unable to write to channel, channel not connected.");
+  if (!otherPortIdentification.isConnected())
+    throw std::runtime_error(
+        "Unable to write to channel, channel not connected.");
 
-    if (otherPort->isLocal()) {
-      writeToLocal(element);
-    } else {
-      writeToExternal(element, elementCount);
-    }
+  if (otherPortIdentification.isLocal()) {
+    writeToLocal(element);
+  } else {
+    writeToExternal(element, elementCount);
+  }
 }
 
 template <typename T, int capacity>
 void OutPort<T, capacity>::writeToLocal(const T &element) {
-  auto channel =
-      dynamic_cast<Channel<T, capacity> *>(otherPort->port->getChannel());
+  auto channel = dynamic_cast<Channel<T, capacity> *>(
+      otherPortIdentification.getPort()->getChannel());
   channel->enqueue(element);
   // notify the actor from the inPort that has value
 }
@@ -62,21 +63,21 @@ void OutPort<T, capacity>::writeToExternal(const T &element, int elementCount) {
               [](const auto request) { return request.first == nullptr; });
   if (firstFreeRequestIt != requests.end()) {
     firstFreeRequestIt->second = element;
-    firstFreeRequestIt->first =
-        MPIHelper::ISend<T>(firstFreeRequestIt->second, elementCount,
-                            otherPort->rankId, otherPort->tagIdentification);
+    firstFreeRequestIt->first = MPIHelper::ISend<T>(
+        firstFreeRequestIt->second, elementCount,
+        otherPortIdentification.getRank(), otherPortIdentification.getTag());
   }
 }
 
 template <typename T, int capacity>
 std::string OutPort<T, capacity>::toString() const {
   std::stringstream ss;
-  ss << "[OP-" << capacity << " ID: " << myIdentification.portName << "]";
+  ss << "[OP-" << capacity << " ID: " << myIdentification.getName() << "]";
   return ss.str();
 }
 
 template <typename T, int capacity>
 void OutPort<T, capacity>::sendMessagesTo(
-    std::unique_ptr<PortIdentification<AbstractInPort>> portIdentification) {
-  otherPort = std::move(portIdentification);
+    PortIdentification<AbstractInPort> portIdentification) {
+  otherPortIdentification = portIdentification;
 }

@@ -27,7 +27,7 @@
  */
 
 #include "AbstractOutPort.hpp"
-#include "Port.h"
+#include "PortIdentification.h"
 #include <memory>
 #include <mutex>
 #include <string>
@@ -46,15 +46,14 @@ template <typename T, int capacity> class OutPort : public AbstractOutPort {
 private:
   std::mutex lock;
 
-  std::unique_ptr<PortIdentification<AbstractInPort>> otherPort;
+  PortIdentification<AbstractInPort> otherPortIdentification;
   std::array<std::pair<std::unique_ptr<MPI_Request>, T>, capacity> requests;
 
 public:
   void write(const T &, int elementCount);
   size_t freeCapacity() const;
   std::string toString() const final;
-  void
-      sendMessagesTo(std::unique_ptr<PortIdentification<AbstractInPort>>) final;
+  void sendMessagesTo(PortIdentification<AbstractInPort>) final;
 
 private:
   explicit OutPort<T, capacity>(const std::string &name);
