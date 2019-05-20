@@ -8,6 +8,11 @@ file(GLOB_RECURSE ACTORLIB_SOURCES "src/actorlib/*.cpp")
 option(ENABLE_MEMORY_SANITATION "Enable GCC Address sanitation. Only supported with GCC toolchain." OFF)
 
 find_package(MPI REQUIRED)
+find_package(BOOST COMPONENTS mpi serialization REQUIRED)
+
+set(Boost_USE_STATIC_LIBS ON)
+set(Boost_USE_MULTITHREADED ON)
+
 set(CMAKE_REQUIRED_DEFINITIONS ${MPI_COMPILE_FLAGS})
 set(CMAKE_REQUIRED_INCLUDES ${MPI_INCLUDE_PATH})
 set(CMAKE_REQUIRED_LIBRARIES ${MPI_LIBRARIES})
@@ -18,6 +23,8 @@ add_executable(mpi_pingpong_example ${MPI_PINGPONG_EXAMPLE_SOURCES})
 add_library(actorlib STATIC ${ACTORLIB_SOURCES})
 
 target_include_directories(actorlib PUBLIC ${MPI_INCLUDE_PATH})
+target_include_directories(mpi_pingpong_example PUBLIC ${Boost_INCLUDE_DIRS})
+target_include_directories(actorlib PUBLIC ${Boost_INCLUDE_DIRS})
 
 if (ENABLE_MEMORY_SANITATION AND ${CMAKE_CXX_COMPILER_ID} STREQUAL "GNU")
     message(STATUS "Memory sanitation enabled. Linking appropriate libraries.")
