@@ -16,42 +16,84 @@ using tag = int;
 
 template <class T> class Request {
 public:
-  Request() : tag(0), rank(0), buffer(), request() {
-    rawBuffer = (int *)malloc(sizeof(int) * 10);
-  }
+  Request()
+      : rank(0), tag(0), buffer(), request(), ready(false), status(),
+        receiveValue(false) {}
 
-  Request(tag tag, rank rank) : tag(tag), rank(rank), buffer(), request() {
-    rawBuffer = (int *)malloc(sizeof(int) * 10);
-  }
+  explicit Request(rank rank, tag tag, bool checkCount)
+      : rank(rank), tag(tag), buffer(), request(), ready(false), status(),
+        receiveValue(checkCount) {}
 
-  Request(tag tag, rank rank, T &&data)
-      : tag(tag), rank(rank), buffer(data), request() {
-    rawBuffer = (int *)malloc(sizeof(int) * 10);
-  }
+  explicit Request(rank rank, tag tag, T &&data, bool checkCount)
+      : rank(rank), tag(tag), buffer(data), request(), ready(false), status(),
+        receiveValue(checkCount) {}
 
   auto &getBuffer() { return buffer; }
 
   auto *getRequest() { return &request; }
 
-  auto test() {
-    int completed = 0;
-    MPI_Test(request, &completed, MPI_STATUS_IGNORE);
-    return static_cast<bool>(completed);
+  void wait() {
+    while (!ready)
+      test();
   }
 
-  auto wait() { MPI_Wait(&request, MPI_STATUS_IGNORE); }
+  bool test() {
+    if (receiveValue)
+      return testProbe();
+    else
+      return testTest();
+  }
 
-  auto &getRawBuffer() { return *rawBuffer; }
+  T get() {
+    wait();
+    int count = 0;
+    MPI_Get_count(&status, MPI_INT, &count);
+
+    MPI_Recv(mpi_type_traits<T>::get_addr(buffer), count,
+             mpi_type_traits<T>::get_type(std::move(buffer)), rank, tag,
+             MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+    printf("Dynamically received %d numbers from %d. Message: %d", count, rank,
+           buffer);
+    return buffer;
+  }
 
 private:
-  tag tag;
+  bool testTest() {
+    if (ready)
+      return ready;
+
+    int flag = 0;
+    MPI_Test(&request, &flag, &status);
+
+    if (flag == 1)
+      ready = true;
+    return ready;
+  }
+
+  bool testProbe() {
+    if (ready)
+      return ready;
+
+    int flag = 0;
+    MPI_Iprobe(rank, tag, MPI_COMM_WORLD, &flag, &status);
+
+    if (flag == 1)
+      ready = true;
+    return ready;
+  }
+
   rank rank;
+  tag tag;
   T buffer;
   MPI_Request request;
-  int *rawBuffer;
+
+  bool ready;
+  MPI_Status status;
+  bool receiveValue;
 };
 
-constexpr rank InvalidRankId = -1;
+constexpr rank INVALID_RANK_ID = -1;
 
 int me() {
   int rank;
@@ -65,33 +107,20 @@ int world() {
   return worldSize;
 }
 
-template <typename T>
-std::unique_ptr<MPI_Request> ISend(T &data, rank rank, tag tag) {
-  auto request = std::make_unique<MPI_Request>();
-  MPI_Isend(mpi_type_traits<T>::get_addr(data),
-            mpi_type_traits<T>::get_size(data),
-            mpi_type_traits<T>::get_type(std::move(data)), rank, tag,
-            MPI_COMM_WORLD, request.get());
-  return request;
-}
-
-template <typename T>
-std::unique_ptr<MPI_Request> IRecv(T &buffer, int elementCount, rank rank,
-                                   tag tag) {
-  auto request = std::make_unique<MPI_Request>();
-  MPI_Irecv(mpi_type_traits<T>::get_addr(buffer), elementCount,
+template <typename T> Request<T> Isend(T &data, rank rank, tag tag) {
+  auto request = Request<T>(rank, tag, std::move(data), false);
+  auto &buffer = request.getBuffer();
+  MPI_Isend(mpi_type_traits<T>::get_addr(buffer),
+            mpi_type_traits<T>::get_size(buffer),
             mpi_type_traits<T>::get_type(std::move(buffer)), rank, tag,
-            MPI_COMM_WORLD, request.get());
+            MPI_COMM_WORLD, request.getRequest());
   return request;
 }
 
-bool hasCompleted(MPI_Request *request) {
-  int completed = 0;
-  MPI_Test(request, &completed, MPI_STATUS_IGNORE);
-  return static_cast<bool>(completed);
+template <typename T> Request<T> Irecv(rank rank, tag tag) {
+  auto request = Request<T>(rank, tag, true);
+  return request;
 }
-
-void wait(MPI_Request *request) { MPI_Wait(request, MPI_STATUS_IGNORE); }
 
 } // namespace mpi
 
