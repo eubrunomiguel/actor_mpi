@@ -8,8 +8,14 @@
 #include "mpi.h"
 #include "mpi_type_traits.h"
 #include <iostream>
+#include <type_traits>
 
 namespace mpi {
+
+template <typename T> struct is_vector : public std::false_type {};
+
+template <typename T, typename A>
+struct is_vector<std::vector<T, A>> : public std::true_type {};
 
 using rank = int;
 using tag = int;
@@ -17,23 +23,23 @@ using tag = int;
 template <class T> class Request {
 public:
   Request()
-      : rank(0), tag(0), buffer(), request(), ready(false), status(),
-        receiveValue(false) {}
+      : rank(0), tag(0), buffer(), request(), requestCompleted(false),
+        requestStatus(), receiveValue(false) {}
 
   explicit Request(rank rank, tag tag, bool checkCount)
-      : rank(rank), tag(tag), buffer(), request(), ready(false), status(),
-        receiveValue(checkCount) {}
+      : rank(rank), tag(tag), buffer(), request(), requestCompleted(false),
+        requestStatus(), receiveValue(checkCount) {}
 
   explicit Request(rank rank, tag tag, T &&data, bool checkCount)
-      : rank(rank), tag(tag), buffer(data), request(), ready(false), status(),
-        receiveValue(checkCount) {}
+      : rank(rank), tag(tag), buffer(data), request(), requestCompleted(false),
+        requestStatus(), receiveValue(checkCount) {}
 
   auto &getBuffer() { return buffer; }
 
   auto *getRequest() { return &request; }
 
   void wait() {
-    while (!ready)
+    while (!requestCompleted)
       test();
   }
 
@@ -45,52 +51,92 @@ public:
   }
 
   T get() {
-    wait();
-    int count = 0;
-    MPI_Get_count(&status, MPI_INT, &count);
+    if (!receiveValue)
+      throw std::runtime_error(
+          "You cannot receive a value from a send operation, "
+          "use the wait() method.");
 
-    MPI_Recv(mpi_type_traits<T>::get_addr(buffer), count,
+    wait();
+
+    prepareBuffer();
+
+    MPI_Recv(mpi_type_traits<T>::get_addr(buffer), requestMessageSize,
              mpi_type_traits<T>::get_type(std::move(buffer)), rank, tag,
              MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-    printf("Dynamically received %d numbers from %d. Message: %d", count, rank,
-           buffer);
+    printBuffer();
+
     return buffer;
   }
 
 private:
+  void printBuffer() { printBuffer(is_vector<T>{}); }
+
+  void printBuffer(std::true_type) {
+    printf("Dynamically received %d numbers from rank %d, tag %d. Message: ",
+           requestMessageSize, rank, tag);
+
+    if (!buffer.empty()) {
+      auto first = buffer.cbegin();
+      std::cout << *first;
+
+      while (buffer.cend() != ++first) {
+        std::cout << ", " << *first;
+      }
+    }
+
+    std::cout << ".\n";
+  }
+
+  void printBuffer(std::false_type) {
+    printf("Dynamically received %d from rank %d, tag %d.", buffer, rank, tag);
+  }
+
   bool testTest() {
-    if (ready)
-      return ready;
+    if (requestCompleted)
+      return requestCompleted;
 
     int flag = 0;
-    MPI_Test(&request, &flag, &status);
+    MPI_Test(&request, &flag, &requestStatus);
 
     if (flag == 1)
-      ready = true;
-    return ready;
+      requestCompleted = true;
+    return requestCompleted;
   }
 
   bool testProbe() {
-    if (ready)
-      return ready;
+    if (requestCompleted)
+      return requestCompleted;
 
     int flag = 0;
-    MPI_Iprobe(rank, tag, MPI_COMM_WORLD, &flag, &status);
+    MPI_Iprobe(rank, tag, MPI_COMM_WORLD, &flag, &requestStatus);
 
     if (flag == 1)
-      ready = true;
-    return ready;
+      requestCompleted = true;
+    return requestCompleted;
   }
+
+  void prepareBuffer() { prepareBuffer(is_vector<T>{}); }
+
+  void prepareBuffer(std::true_type) {
+    MPI_Get_count(&requestStatus, MPI_INT, &requestMessageSize);
+
+    if (static_cast<bool>(is_vector<T>::value))
+      buffer.resize(requestMessageSize);
+  }
+
+  void prepareBuffer(std::false_type) { requestMessageSize = 1; }
+
+  bool receiveValue;
 
   rank rank;
   tag tag;
   T buffer;
-  MPI_Request request;
 
-  bool ready;
-  MPI_Status status;
-  bool receiveValue;
+  MPI_Request request;
+  bool requestCompleted;
+  MPI_Status requestStatus;
+  int requestMessageSize;
 };
 
 constexpr rank INVALID_RANK_ID = -1;

@@ -8,20 +8,49 @@
 using namespace std;
 using namespace mpi;
 
+auto sendUnique() {
+  auto other = (me() + 1) % 2;
+  constexpr int tag = 666;
+
+  auto value = 260894;
+  auto req = Isend(value, other, tag);
+  req.wait();
+}
+
+auto receiveUnique() {
+  auto other = (me() + 1) % 2;
+  constexpr int tag = 666;
+
+  auto req = Irecv<int>(other, tag);
+  req.get();
+}
+
+auto sendVec() {
+  auto other = (me() + 1) % 2;
+  constexpr int tag = 666;
+
+  vector<int> values{1, 2, 3};
+  auto req = Isend(values, other, tag);
+  req.wait();
+}
+
+auto receiveVec() {
+  auto other = (me() + 1) % 2;
+  constexpr int tag = 666;
+
+  auto req = Irecv<vector<int>>(other, tag);
+  req.get();
+}
+
 int main() {
   MPI_Init(nullptr, nullptr);
 
-  auto other = (me() + 1) % 2;
-  auto tag = 666;
-
   if (me() == 0) {
-    auto value = 260894;
-    auto req = Isend(value, other, tag);
-    req.wait();
-
+    sendVec();
+    sendUnique();
   } else {
-    auto req = Irecv<int>(other, tag);
-    req.get();
+    receiveVec();
+    receiveUnique();
   }
 
   MPI_Barrier(MPI_COMM_WORLD);
