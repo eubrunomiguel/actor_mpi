@@ -25,11 +25,11 @@ auto receiveUnique() {
   req.get();
 }
 
-auto sendVec() {
+auto sendVec(int size) {
   auto other = (me() + 1) % 2;
   constexpr int tag = 666;
 
-  vector<int> values{1, 2, 3};
+  vector<int> values(size, 13);
   auto req = Isend(values, other, tag);
   req.wait();
 }
@@ -42,16 +42,36 @@ auto receiveVec() {
   req.get();
 }
 
-int main() {
-  MPI_Init(nullptr, nullptr);
-
+void sendRecv() {
   if (me() == 0) {
-    sendVec();
+    sendVec(10);
+    sendVec(15);
+    sendVec(12);
+    sendVec(13);
+    sendVec(0);
+  } else {
+    receiveVec();
+    receiveVec();
+    receiveVec();
+    receiveVec();
+    receiveVec();
+  }
+}
+
+void sendRecv_incorrent() {
+  if (me() == 0) {
     sendUnique();
+    sendVec(10);
   } else {
     receiveVec();
     receiveUnique();
   }
+}
+
+int main() {
+  MPI_Init(nullptr, nullptr);
+
+  sendRecv();
 
   MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
