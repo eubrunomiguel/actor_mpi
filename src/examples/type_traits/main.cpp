@@ -1,8 +1,12 @@
 #include "mpi.h"
 #include "mpi_helper.hpp"
+#include "mpi_type_traits.h"
+#include <array>
 #include <cstdlib>
 #include <iostream>
+#include <iterator>
 #include <stdio.h>
+#include <type_traits>
 #include <vector>
 
 using namespace std;
@@ -13,7 +17,7 @@ auto sendUnique() {
   constexpr int tag = 666;
 
   auto value = 260894;
-  auto req = Isend(value, other, tag);
+  auto req = Isend(other, tag, value);
   req.wait();
 }
 
@@ -21,16 +25,39 @@ auto receiveUnique() {
   auto other = (me() + 1) % 2;
   constexpr int tag = 666;
 
-  auto req = Irecv<int>(other, tag);
-  req.get();
+  int value = 0;
+  auto req = Irecv(other, tag, value);
+  req.wait();
+  std::cout << value;
 }
 
-auto sendVec(int size) {
+auto sendStdArray() {
   auto other = (me() + 1) % 2;
   constexpr int tag = 666;
 
-  vector<int> values(size, 13);
-  auto req = Isend(values, other, tag);
+  array<int, 3> values{1, 2, 3};
+  auto req = Isend(other, tag, values);
+  req.wait();
+}
+
+auto receiveStdArray() {
+  auto other = (me() + 1) % 2;
+  constexpr int tag = 666;
+
+  array<int, 3> values{0, 0, 0};
+
+  auto req = Irecv(other, tag, values);
+  req.wait();
+  for (auto &val : values)
+    cout << val;
+}
+
+auto sendVec() {
+  auto other = (me() + 1) % 2;
+  constexpr int tag = 666;
+
+  vector<int> values{1, 2, 3};
+  auto req = Isend(other, tag, values);
   req.wait();
 }
 
@@ -38,33 +65,19 @@ auto receiveVec() {
   auto other = (me() + 1) % 2;
   constexpr int tag = 666;
 
-  auto req = Irecv<vector<int>>(other, tag);
-  req.get();
+  vector<int> values{0, 0, 0};
+
+  auto req = Irecv(other, tag, values);
+  req.wait();
+  for (auto &val : values)
+    cout << val;
 }
 
 void sendRecv() {
   if (me() == 0) {
-    sendVec(10);
-    sendVec(15);
-    sendVec(12);
-    sendVec(13);
-    sendVec(0);
+    sendVec();
   } else {
     receiveVec();
-    receiveVec();
-    receiveVec();
-    receiveVec();
-    receiveVec();
-  }
-}
-
-void sendRecv_incorrent() {
-  if (me() == 0) {
-    sendUnique();
-    sendVec(10);
-  } else {
-    receiveVec();
-    receiveUnique();
   }
 }
 

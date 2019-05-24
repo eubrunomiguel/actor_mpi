@@ -40,7 +40,7 @@
 using namespace std;
 using namespace std::string_literals;
 
-std::string getActorName(MPIHelper::RankId actorIdx) {
+std::string getActorName(mpi::rank actorIdx) {
   return "A-"s + to_string(actorIdx);
 }
 
@@ -49,14 +49,14 @@ int main(int argc, const char **argv) {
 
   ActorGraph ag;
 
-  const string myActorName = getActorName(MPIHelper::myRank());
+  const string myActorName = getActorName(mpi::me());
 
   auto myActor = new PingPongActor(myActorName);
 
   ag.addLocalActor(myActor);
   ag.synchronizeActors();
 
-  MPIHelper::RankId otherActorRank = MPIHelper::myRank() == 1 ? 0 : 1;
+  mpi::rank otherActorRank = mpi::me() == 1 ? 0 : 1;
 
   ag.connectPorts(myActorName, PingPongActor::OUT_PORT_NAME,
                   getActorName(otherActorRank), PingPongActor::IN_PORT_NAME);
