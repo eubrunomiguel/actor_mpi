@@ -38,24 +38,6 @@
 using namespace std;
 using namespace std::string_literals;
 
-Actor::Actor(const string &name) : name(name) {}
-
-template <typename T, int capacity>
-const std::shared_ptr<InPort<T, capacity>>
-Actor::makeInPort(const std::string &portName) {
-  auto ip = std::make_shared<InPort<T, capacity>>(portName);
-  inPorts.emplace(portName, ip);
-  return ip;
-}
-
-template <typename T, int capacity>
-const std::shared_ptr<OutPort<T, capacity>>
-Actor::makeOutPort(const std::string &portName) {
-  auto op = std::make_shared<OutPort<T, capacity>>(portName);
-  outPorts.emplace(portName, op);
-  return op;
-}
-
 std::string Actor::toString() const {
   stringstream ss;
   ss << "Actor( " << name << " ) { ";
@@ -69,7 +51,7 @@ std::string Actor::toString() const {
   return ss.str();
 }
 
-shared_ptr<AbstractInPort> Actor::getInPort(const string &portName) const {
+AbstractInPort *Actor::getInPort(const string &portName) const {
   auto res = inPorts.find(portName);
   if (res != inPorts.end()) {
     return res->second;
@@ -79,7 +61,7 @@ shared_ptr<AbstractInPort> Actor::getInPort(const string &portName) const {
   }
 }
 
-shared_ptr<AbstractOutPort> Actor::getOutPort(const string &portName) const {
+AbstractOutPort *Actor::getOutPort(const string &portName) const {
   auto res = outPorts.find(name);
   if (res != outPorts.end()) {
     return res->second;

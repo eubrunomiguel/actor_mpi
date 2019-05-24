@@ -26,6 +26,8 @@
  *
  */
 
+#include "InPort.hpp"
+#include "OutPort.hpp"
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -35,34 +37,53 @@
 class ActorGraph;
 class AbstractInPort;
 class AbstractOutPort;
-template <typename T, int capacity> class InPort;
-template <typename T, int capacity> class OutPort;
 
 class Actor {
 
   friend class ActorGraph;
 
-private:
-  std::unordered_map<std::string, std::shared_ptr<AbstractInPort>> inPorts;
-  std::unordered_map<std::string, std::shared_ptr<AbstractOutPort>> outPorts;
-
-public:
-  const std::string name;
-
 protected:
   template <typename T, int capacity>
-  const std::shared_ptr<InPort<T, capacity>> makeInPort(const std::string &);
+  InPort<T, capacity> *makeInPort(std::string);
+
   template <typename T, int capacity>
-  const std::shared_ptr<OutPort<T, capacity>> makeOutPort(const std::string &);
+  OutPort<T, capacity> *makeOutPort(std::string);
 
 public:
-  Actor(const std::string &name);
+  template <class T> Actor(T &&name) : name(std::forward<T>(name)) {}
+
   virtual ~Actor() = default;
+
   Actor(Actor &other) = delete;
+
   Actor &operator=(Actor &other) = delete;
+
   std::string toString() const;
-  std::shared_ptr<AbstractInPort> getInPort(const std::string &portName) const;
-  std::shared_ptr<AbstractOutPort>
-  getOutPort(const std::string &portName) const;
+
+  AbstractInPort *getInPort(const std::string &portName) const;
+
+  AbstractOutPort *getOutPort(const std::string &portName) const;
+
   virtual bool act() = 0;
+
+protected:
+  std::string name;
+
+private:
+  std::unordered_map<std::string, AbstractInPort *> inPorts;
+  std::unordered_map<std::string, AbstractOutPort *> outPorts;
 };
+
+template <typename T, int capacity>
+InPort<T, capacity> *Actor::makeInPort(std::string portName) {
+  auto ip = new InPort<T, capacity>(portName);
+  inPorts.emplace(portName, ip);
+  return ip;
+}
+
+template <typename T, int capacity>
+OutPort<T, capacity> *Actor::makeOutPort(std::string portName) {
+  auto op = new OutPort<T, capacity>(portName);
+  outPorts.emplace(portName, op);
+  return op;
+}
