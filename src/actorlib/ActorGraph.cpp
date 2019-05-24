@@ -42,7 +42,7 @@ using namespace std;
 void ActorGraph::addLocalActor(Actor *a) { localActors.emplace(a->name, a); }
 
 void ActorGraph::synchronizeActors() {
-  int worldSize = MPIHelper::worldSize();
+  int worldSize = mpi::world();
 
   // Exchange local number of actors
   int *numActorsPerRank = (int *)malloc(sizeof(int) * worldSize);
@@ -109,12 +109,13 @@ void ActorGraph::connectPorts(const string &sourceActorName,
     // Destination is local
     // inPort || destinated Actor holds the channel
     // It is responsible to warn writter when it has been read
-    auto actorPtr = destLocalActorIt->second;
-    auto destInPort = actorPtr->getInPort(destinationPortName);
+    Actor *actor = destLocalActorIt->second;
+    AbstractInPort *destInPort = actor->getInPort(destinationPortName);
 
     if (srcLocalActorIt != localActors.end()) {
       // localToLocal
-      auto srcOutPort = srcLocalActorIt->second->getOutPort(sourcePortName);
+      AbstractOutPort *srcOutPort =
+          srcLocalActorIt->second->getOutPort(sourcePortName);
       destInPort->receiveMessagesFrom(
           PortIdentification<AbstractOutPort>(srcOutPort));
     } else {
@@ -153,7 +154,7 @@ int ActorGraph::getNumActors() const { return actors.size(); }
 
 int ActorGraph::getNumActorsLocal() const { return actors.size(); }
 
-MPIHelper::RankId ActorGraph::getActorByName(const std::string &name) const {
+mpi::rank ActorGraph::getActorByName(const std::string &name) const {
   auto entry = actors.find(name);
   if (entry != actors.end()) {
     return entry->second;
@@ -197,5 +198,5 @@ double ActorGraph::run() {
 
 ActorGraph::~ActorGraph() {
   actors.clear();
-  actorTriggerCount.clear();
+  localActors.clear();
 }

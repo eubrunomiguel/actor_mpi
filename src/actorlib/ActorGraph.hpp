@@ -39,28 +39,37 @@ class ActorGraph {
   friend class Actor;
 
 private:
-  std::unordered_map<std::string, MPIHelper::RankId> actors;
+  std::unordered_map<std::string, mpi::rank> actors;
   std::unordered_map<std::string, Actor *> localActors;
-
-  std::mutex actorLock; // TODO: these locks may be removed
-  std::unordered_map<Actor *, size_t> actorTriggerCount;
 
 public:
   ActorGraph() = default;
+
   ~ActorGraph();
+
   ActorGraph(ActorGraph &other) = delete;
+
+  ActorGraph(ActorGraph &&other) = delete;
+
   ActorGraph &operator=(ActorGraph &other) = delete;
 
   void addLocalActor(Actor *a);
+
   void synchronizeActors();
+
   void connectPorts(const std::string &sourceActorName,
                     const std::string &sourcePortName,
                     const std::string &destinationActorName,
                     const std::string &destinationPortName);
+
   int getNumActors() const;
+
   int getNumActorsLocal() const;
-  MPIHelper::RankId getActorByName(const std::string &name) const;
+
+  mpi::rank getActorByName(const std::string &name) const;
+
   std::string prettyPrint() const;
+
   double run();
 
 private:
