@@ -34,17 +34,18 @@ class AbstractOutPort;
 
 class AbstractInPort {
 public:
-  const PortIdentification<AbstractInPort> myIdentification;
-
-public:
   virtual void *getChannel() const = 0;
 
   virtual std::string toString() const = 0;
 
   virtual void receiveMessagesFrom(PortIdentification<AbstractOutPort>) = 0;
 
-  explicit AbstractInPort(const std::string &name)
-      : myIdentification(name, MPIHelper::myRank()) {}
+  template <class T>
+  explicit AbstractInPort(T &&name)
+      : myIdentification(std::forward<T>(name), mpi::me()) {}
 
   virtual ~AbstractInPort() = default;
+
+protected:
+  PortIdentification<AbstractInPort> myIdentification;
 };

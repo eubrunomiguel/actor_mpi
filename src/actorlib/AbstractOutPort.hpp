@@ -33,15 +33,16 @@ class AbstractInPort;
 
 class AbstractOutPort {
 public:
-  const PortIdentification<AbstractOutPort> myIdentification;
-
-public:
   virtual std::string toString() const = 0;
 
   virtual void sendMessagesTo(PortIdentification<AbstractInPort>) = 0;
 
-  explicit AbstractOutPort(const std::string &name)
-      : myIdentification(name, MPIHelper::myRank()) {}
+  template <class T>
+  explicit AbstractOutPort(T &&name)
+      : myIdentification(std::forward<T>(name), mpi::me()) {}
 
   virtual ~AbstractOutPort() = default;
+
+protected:
+  PortIdentification<AbstractOutPort> myIdentification;
 };
