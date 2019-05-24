@@ -23,7 +23,9 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <complex>
+#include <list>
 #include <mpi.h>
 #include <vector>
 
@@ -75,6 +77,8 @@ PRIMITIVE(std::complex<double>, MPI_DOUBLE_COMPLEX);
 
 #undef PRIMITIVE
 
+// ... add missing types here ...
+
 template <class T> struct mpi_type_traits<const T> {
 
   typedef const typename mpi_type_traits<T>::element_type element_type;
@@ -110,6 +114,74 @@ template <class T> struct mpi_type_traits<std::vector<T>> {
 
   static inline element_addr_type get_addr(std::vector<T> &vec) {
     return mpi_type_traits<T>::get_addr(vec.front());
+  }
+};
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//	std::array<T> traits
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+template <class T, size_t N> struct mpi_type_traits<std::array<T, N>> {
+
+  inline static size_t get_size(const std::array<T, N> &vec) { return N; }
+
+  inline static MPI_Datatype get_type(const std::array<T, N> &vec) {
+    return mpi_type_traits<T>::get_type(T());
+  }
+
+  static inline T *get_addr(std::array<T, N> &vec) {
+    return mpi_type_traits<T>::get_addr(vec.front());
+  }
+};
+
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+//	std::list<T> traits
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+template <class T> struct mpi_type_traits<std::list<T>> {
+
+  static inline size_t get_size(const std::list<T> &vec) { return 1; }
+
+  static MPI_Datatype get_type(const std::list<T> &l) {
+    // we have to get the create an MPI_Datatype containing the offsets
+    // of the current object
+
+    // we consider the offsets starting from the first element
+    std::vector<MPI_Aint> address(l.size());
+    std::vector<int> dimension(l.size());
+    std::vector<MPI_Datatype> types(l.size());
+
+    std::vector<int>::iterator dim_it = dimension.begin();
+    std::vector<MPI_Aint>::iterator address_it = address.begin();
+    std::vector<MPI_Datatype>::iterator type_it = types.begin();
+
+    MPI_Aint base_address;
+    MPI_Address(const_cast<T *>(&l.front()), &base_address);
+
+    *(type_it++) = mpi_type_traits<T>::get_type(l.front());
+    *(dim_it++) = static_cast<int>(mpi_type_traits<T>::get_size(l.front()));
+    *(address_it++) = 0;
+
+    typename std::list<T>::const_iterator begin = l.begin();
+    ++begin;
+    std::for_each(begin, l.cend(), [&](const T &curr) {
+      assert(address_it != address.end() && type_it != types.end() &&
+             dim_it != dimension.end());
+
+      MPI_Address(const_cast<T *>(&curr), &*address_it);
+      *(address_it++) -= base_address;
+      *(type_it++) = mpi_type_traits<T>::get_type(curr);
+      *(dim_it++) = static_cast<int>(mpi_type_traits<T>::get_size(curr));
+    });
+
+    MPI_Datatype list_dt;
+    MPI_Type_create_struct(static_cast<int>(l.size()), &dimension.front(),
+                           &address.front(), &types.front(), &list_dt);
+    MPI_Type_commit(&list_dt);
+
+    return list_dt;
+  }
+
+  static inline T *get_addr(std::list<T> &list) {
+    return mpi_type_traits<T>::get_addr(list.front());
   }
 };
 
