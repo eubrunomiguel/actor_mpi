@@ -28,11 +28,13 @@
 
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 
 #include "AbstractInPort.hpp"
+#include "AbstractOutPort.hpp"
 #include "Channel.hpp"
-#include "PortIdentification.h"
+#include "utils/mpi_helper.hpp"
 
 #pragma once
 
@@ -43,20 +45,91 @@ template <typename T, int capacity> class InPort : public AbstractInPort {
 
   friend class Actor;
 
-private:
-  Channel<T, capacity> myChannel;
-
-  PortIdentification<AbstractOutPort> otherPortIdentification;
-  std::array<std::pair<std::unique_ptr<MPI_Request>, T>, capacity> requests;
-
 public:
-  T read(int elementCount);
+  template <class str>
+  explicit InPort<T, capacity>(str &&name)
+      : AbstractInPort(std::forward<str>(name)),
+        otherPortIdentification(nullptr) {}
+
+  InPort<T, capacity>(InPort<T, capacity> const &) = delete;
+  InPort<T, capacity>(InPort<T, capacity> &&) = delete;
+  InPort<T, capacity> &operator=(InPort<T, capacity> const &) = delete;
+  InPort<T, capacity> &operator=(InPort<T, capacity> &&) = delete;
+
+  T read();
+
   T peek() const;
+
   size_t available() const;
+
   std::string toString() const final;
-  void receiveMessagesFrom(PortIdentification<AbstractOutPort>) final;
+
+  void receiveMessagesFrom(
+      PortIdentification<AbstractOutPort> portIdentification) final {
+    otherPortIdentification = portIdentification;
+  }
+
+  void *getChannel() const final;
 
 private:
-  explicit InPort<T, capacity>(const std::string &name);
-  void *getChannel() const final;
+  void recycleRequests();
+  void openRequests();
+
+  Channel<T, capacity> myChannel;
+  PortIdentification<AbstractOutPort> otherPortIdentification;
+  std::array<mpi::ReceiveRequest<T>, capacity> requests;
 };
+
+template <typename T, int capacity>
+size_t InPort<T, capacity>::available() const {
+  return myChannel.available();
+}
+
+template <typename T, int capacity> T InPort<T, capacity>::peek() const {
+  return myChannel.peek();
+}
+
+template <typename T, int capacity>
+void InPort<T, capacity>::recycleRequests() {
+  for (auto &request : requests) {
+    if (request.isDirty()) {
+      if (request.hasFinished()) {
+        myChannel.returnElement(request.getBuffer());
+        request = mpi::ReceiveRequest<T>();
+      }
+    }
+  }
+}
+
+template <typename T, int capacity> void InPort<T, capacity>::openRequests() {
+  for (auto &request : requests) {
+    if (!request.isDirty())
+      request = mpi::Irecv<T>(otherPortIdentification.getRank(),
+                              myIdentification.getTag(), myChannel.reserve());
+  }
+}
+
+template <typename T, int capacity> T InPort<T, capacity>::read() {
+  if (!otherPortIdentification.isConnected())
+    throw std::runtime_error(
+        std::string("Unable to read from channel, channel not connected."));
+
+  if (otherPortIdentification.isExternal()) {
+    recycleRequests();
+    openRequests();
+  }
+
+  return myChannel.getNext();
+}
+
+template <typename T, int capacity>
+void *InPort<T, capacity>::getChannel() const {
+  return (void *)(&this->myChannel);
+}
+
+template <typename T, int capacity>
+std::string InPort<T, capacity>::toString() const {
+  std::stringstream ss;
+  ss << "[IP-" << capacity << " ID: " << myIdentification.getName() << "]";
+  return ss.str();
+}
