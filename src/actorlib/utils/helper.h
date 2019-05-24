@@ -1,14 +1,11 @@
 //
 // Created by Bruno Macedo Miguel on 2019-05-11.
 //
-
-#ifndef ACTORUPCXX_HELPER_H
-#define ACTORUPCXX_HELPER_H
+#pragma once
 
 #include <iostream>
-
 namespace helper {
-int compute_hash(std::string const &s) {
+static int compute_hash(std::string const &s) {
   const int p = 53;
   const int m = 1e9 + 9;
   long long hash_value = 0;
@@ -21,5 +18,3 @@ int compute_hash(std::string const &s) {
   return hash_value;
 }
 } // namespace helper
-
-#endif
