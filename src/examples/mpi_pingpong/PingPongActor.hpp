@@ -37,8 +37,8 @@ public:
   static std::string OUT_PORT_NAME;
 
 private:
-  const std::shared_ptr<InPort<size_t, 10>> ip;
-  const std::shared_ptr<OutPort<size_t, 10>> op;
+  InPort<size_t, 10> *ip;
+  OutPort<size_t, 10> *op;
 
   bool begin;
 

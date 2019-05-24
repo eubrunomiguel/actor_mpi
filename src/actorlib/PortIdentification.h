@@ -11,34 +11,36 @@
 
 template <typename T> class PortIdentification {
 public:
-  PortIdentification() = default;
+  PortIdentification() = delete;
 
-  PortIdentification(const std::string &portName, MPIHelper::RankId rankId)
-      : tagIdentification(helper::compute_hash(portName)), portName(portName),
-        rankId(rankId), port(nullptr) {}
+  template <class str>
+  PortIdentification(str &&portName, mpi::rank rankId)
+      : portName(std::forward<str>(portName)),
+        tagIdentification(helper::compute_hash(portName)), rankId(rankId),
+        port(nullptr) {}
 
-  explicit PortIdentification(std::shared_ptr<T> port)
-      : tagIdentification(0), rankId(MPIHelper::InvalidRankId), port(port) {}
+  explicit PortIdentification(T *port)
+      : tagIdentification(0), rankId(mpi::INVALID_RANK_ID), port(port) {}
 
-  bool isLocal() const { return port != nullptr; }
+  inline bool isLocal() const { return port != nullptr; }
 
-  bool isExternal() const { return rankId != MPIHelper::InvalidRankId; }
+  inline bool isExternal() const { return rankId != mpi::INVALID_RANK_ID; }
 
-  bool isConnected() const { return isLocal() || isExternal(); }
+  inline bool isConnected() const { return isLocal() || isExternal(); }
 
-  auto getRank() { return rankId; }
+  inline auto getRank() const { return rankId; }
 
-  auto getName() { return portName; }
+  inline auto getName() const { return portName; }
 
-  auto getTag() { return rankId; }
+  inline auto getTag() const { return rankId; }
 
-  auto getPort() { return port.get(); }
+  inline auto getPort() const { return port; }
 
 private:
-  const int tagIdentification;
-  const std::string portName;
-  const MPIHelper::RankId rankId;
-  std::shared_ptr<T> port;
+  std::string portName;
+  int tagIdentification;
+  mpi::rank rankId;
+  T *port;
 };
 
 #endif

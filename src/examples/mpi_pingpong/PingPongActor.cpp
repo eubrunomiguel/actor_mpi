@@ -28,9 +28,9 @@
  */
 
 #include "PingPongActor.hpp"
-
 #include "actorlib/InPort.hpp"
 #include "actorlib/OutPort.hpp"
+#include <iostream>
 
 std::string PingPongActor::IN_PORT_NAME = "IN";
 std::string PingPongActor::OUT_PORT_NAME = "OUT";
@@ -46,16 +46,15 @@ bool PingPongActor::act() {
   if (name == "A-0-0" && this->begin) {
     size_t data = 0;
     this->begin = false;
-    op->write(data, 1);
+    op->write(data);
     std::cout << name << " sent " << data << std::endl;
-    return false;
   }
 
   if (ip->available() > 0 && op->freeCapacity() > 0) {
-    auto data = ip->read(1);
+    auto data = ip->read();
     std::cout << name << " received " << data << std::endl;
     data++;
-    op->write(data, 1);
+    op->write(data);
     std::cout << name << " sent " << data << std::endl;
   }
 
