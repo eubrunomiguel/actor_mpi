@@ -29,7 +29,7 @@
 #include <array>
 #include <iostream>
 #include <memory>
-#include <mutex>
+#include <queue>
 
 #pragma once
 
@@ -43,63 +43,72 @@ private:
   int lastElement;
   int firstElement;
   bool isFull;
-  std::array<T, capacity> queue;
-  std::mutex lock;
+
+  std::array<T, capacity> buffer;
+
+  std::queue<T *> elements;
+  std::queue<T *> freeSpace;
 
 public:
   Channel();
-  void enqueue(T element);
-  T dequeue();
+
+  T *reserve();
+
+  void returnElement(T *);
+
+  T getNext();
+
   T peek() const;
-  size_t size() const;
+
+  size_t available() const;
 };
 
-template <typename type, int capacity>
-Channel<type, capacity>::Channel()
-    : lastElement(0), firstElement(0), isFull(false) {}
+template <typename T, int capacity>
+Channel<T, capacity>::Channel()
+    : lastElement(0), firstElement(0), isFull(false) {
+  for (auto &el : buffer) {
+    freeSpace.push(&el);
+  }
+}
 
-template <typename type, int capacity>
-void Channel<type, capacity>::enqueue(type element) {
-  std::lock_guard<std::mutex> writeLock(lock);
-  if ((lastElement - firstElement) % capacity == 0 && isFull) {
+template <typename T, int capacity>
+void Channel<T, capacity>::returnElement(T *element) {
+  if (elements.size() >= capacity)
+    throw std::runtime_error("Cannot emplace a previously reserved element.");
+
+  elements.push(element);
+}
+
+template <typename T, int capacity> T *Channel<T, capacity>::reserve() {
+  if (freeSpace.empty())
     throw std::runtime_error("Channel is full");
-  } else {
-    lastElement = (lastElement + 1) % capacity;
-    isFull = (lastElement == firstElement);
-    queue[lastElement] = element;
-  }
+
+  T *firstFree = freeSpace.front();
+  freeSpace.pop();
+  return firstFree;
 }
 
-template <typename type, int capacity>
-type Channel<type, capacity>::peek() const {
-  std::lock_guard<std::mutex> writeLock(lock);
-  if (lastElement == firstElement && !isFull) {
+template <typename T, int capacity> T Channel<T, capacity>::getNext() {
+  if (elements.empty())
     throw std::runtime_error("Channel is empty");
-  } else {
-    size_t elemPos = (firstElement + 1) % capacity;
-    type element = queue[elemPos];
-    return element;
-  }
+
+  T *elementAddress = elements.front();
+  T element = *elements.front();
+
+  elements.pop();
+  freeSpace.push(elementAddress);
+
+  return element;
 }
 
-template <typename type, int capacity> type Channel<type, capacity>::dequeue() {
-  std::lock_guard<std::mutex> writeLock(lock);
-  if (lastElement == firstElement && !isFull) {
+template <typename T, int capacity> T Channel<T, capacity>::peek() const {
+  if (elements.empty())
     throw std::runtime_error("Channel is empty");
-  } else {
-    firstElement = (firstElement + 1) % capacity;
-    type element = queue[firstElement];
-    isFull = false;
-    return element;
-  }
+
+  return *elements.front();
 }
 
-template <typename type, int capacity>
-size_t Channel<type, capacity>::size() const {
-  std::lock_guard<std::mutex> readLock(lock);
-  int tmpLast = lastElement;
-  if (lastElement < firstElement || isFull) {
-    tmpLast += capacity;
-  }
-  return tmpLast - firstElement;
+template <typename T, int capacity>
+size_t Channel<T, capacity>::available() const {
+  return elements.size();
 }
