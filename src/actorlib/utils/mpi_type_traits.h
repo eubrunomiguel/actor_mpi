@@ -22,12 +22,11 @@
 
 #pragma once
 
-#include "mpi.h"
-
 #include <algorithm>
 #include <array>
 #include <complex>
 #include <list>
+#include <mpi.h>
 #include <vector>
 
 namespace mpi {
@@ -72,10 +71,9 @@ PRIMITIVE(float, MPI_FLOAT);
 PRIMITIVE(double, MPI_DOUBLE);
 PRIMITIVE(long double, MPI_LONG_DOUBLE);
 
-PRIMITIVE(bool, MPI_C_BOOL);
+PRIMITIVE(bool, MPI_CXX_BOOL);
 PRIMITIVE(std::complex<float>, MPI_COMPLEX);
 PRIMITIVE(std::complex<double>, MPI_DOUBLE_COMPLEX);
-PRIMITIVE(std::complex<long double>, MPI_C_LONG_DOUBLE_COMPLEX);
 
 #undef PRIMITIVE
 
@@ -130,7 +128,7 @@ template <class T, size_t N> struct mpi_type_traits<std::array<T, N>> {
     return mpi_type_traits<T>::get_type(T());
   }
 
-  static inline const T *get_addr(const std::array<T, N> &vec) {
+  static inline T *get_addr(std::array<T, N> &vec) {
     return mpi_type_traits<T>::get_addr(vec.front());
   }
 };
@@ -182,7 +180,7 @@ template <class T> struct mpi_type_traits<std::list<T>> {
     return list_dt;
   }
 
-  static inline const T *get_addr(const std::list<T> &list) {
+  static inline T *get_addr(std::list<T> &list) {
     return mpi_type_traits<T>::get_addr(list.front());
   }
 };
